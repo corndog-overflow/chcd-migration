@@ -3,13 +3,14 @@
 
 -- Create base table for Geography Nodes
 CREATE TABLE GeographyNode (
-                               id INT PRIMARY KEY,
+                               id INT,
+                               level CHAR,
                                name_wes TEXT,
                                name_zh TEXT,
                                name_rom TEXT,
                                latitude DECIMAL,
                                longitude DECIMAL,
-                               chcd_id TEXT UNIQUE
+                               PRIMARY KEY (id,level)
 );
 
 -- Create tables for main entities
@@ -37,10 +38,10 @@ CREATE TABLE CorporateEntities (
                                    end_year INTEGER,
                                    notes TEXT,
                                    source TEXT,
-                                   chcd_id TEXT UNIQUE,
 
-                                   geography_node_id TEXT,
-                                   FOREIGN KEY (geography_node_id) REFERENCES GeographyNode(chcd_id)
+                                   geography_node_id INTEGER,
+                                   geography_node_level CHAR,
+                                   FOREIGN KEY (geography_node_id, geography_node_level) REFERENCES GeographyNode(id, level)
 );
 
 CREATE TABLE Institutions (
@@ -65,10 +66,10 @@ CREATE TABLE Institutions (
                               end_year INTEGER,
                               notes TEXT,
                               source TEXT,
-                              chcd_id TEXT UNIQUE,
 
                               geography_node_id INTEGER,
-                              FOREIGN KEY (geography_node_id) REFERENCES GeographyNode(id)
+                              geography_node_level CHAR,
+                              FOREIGN KEY (geography_node_id, geography_node_level) REFERENCES GeographyNode(id, level)
 );
 
 CREATE TABLE People (
@@ -109,8 +110,7 @@ CREATE TABLE People (
                         beatification TEXT,
                         canonization TEXT,
                         notes TEXT,
-                        source TEXT,
-                        chcd_id TEXT UNIQUE
+                        source TEXT
 );
 
 CREATE TABLE Publications (
@@ -138,8 +138,7 @@ CREATE TABLE Publications (
                               end_month INTEGER,
                               end_year INTEGER,
                               notes TEXT,
-                              source TEXT,
-                              chcd_id TEXT UNIQUE
+                              source TEXT
 );
 
 CREATE TABLE Events (
@@ -165,17 +164,18 @@ CREATE TABLE Events (
                         chcd_id TEXT UNIQUE,
 
                         geography_node_id INTEGER,
-                        FOREIGN KEY (geography_node_id) REFERENCES GeographyNode(id)
+                        geography_node_level CHAR,
+                        FOREIGN KEY (geography_node_id, geography_node_level) REFERENCES GeographyNode(id, level)
 );
 
 CREATE TABLE GeneralAreas (
                               id INT PRIMARY KEY,
                               name_western TEXT,
                               alternative_name_western TEXT,
-                              chcd_id TEXT UNIQUE,
 
                               geography_node_id INTEGER,
-                              FOREIGN KEY (geography_node_id) REFERENCES GeographyNode(id)
+                              geography_node_level CHAR,
+                              FOREIGN KEY (geography_node_id, geography_node_level) REFERENCES GeographyNode(id, level)
 );
 
 -- Create relationship tables
@@ -297,7 +297,7 @@ CREATE TABLE Publications_InvolvedWith_GeneralAreas (
 
 -- Create tmp tables for import
 CREATE TABLE temp_nodes (
-                            id INT PRIMARY KEY,
+                            neo4j_id INT PRIMARY KEY,
                             chcd_id VARCHAR,
                             label VARCHAR,
                             abbreviation TEXT,
