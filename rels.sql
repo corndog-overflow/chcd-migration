@@ -149,3 +149,12 @@ FROM temp_relationships r
          JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label = 'Event'
          JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
 WHERE r.type = 'LOCATED_IN' AND Events.id = CAST(SUBSTRING(n.chcd_id,3) AS INTEGER);
+
+UPDATE GeographyNode
+SET parent_node_id = CAST(SUBSTRING(g.chcd_id, 3) AS INTEGER),
+    parent_node_level = CAST(SUBSTRING(g.chcd_id, 1, 1) AS CHAR)
+FROM temp_relationships r
+         JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label IN ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
+         JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label IN ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
+WHERE r.type = 'INSIDE_OF' AND GeographyNode.id = CAST(SUBSTRING(n.chcd_id, 3) AS INTEGER);
+
