@@ -89,10 +89,11 @@ FROM temp_nodes
 WHERE label = 'GeneralArea';
 
 INSERT INTO GeographyNode (
-    id, level, name_wes, name_zh, name_rom, latitude, longitude
+    id, name_wes, name_zh, name_rom, latitude, longitude
 )
 SELECT
-    CAST(SUBSTRING(chcd_id,3) AS INTEGER), CAST(SUBSTRING(chcd_id,1,1) AS CHAR),name_wes, name_zh, name_rom, latitude, longitude
+    chcd_id, name_wes, name_zh, name_rom, latitude, longitude
 FROM temp_nodes
-WHERE label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
-ON CONFLICT DO NOTHING;
+WHERE label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation');
+-- ON CONFLICT DO NOTHING;
+

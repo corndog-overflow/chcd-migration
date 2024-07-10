@@ -126,35 +126,96 @@ FROM temp_relationships r
 WHERE r.type = 'INVOLVED_WITH';
 
 -- Update geography_node_id FK based on :LOCATED_IN
-UPDATE Institutions
-SET geography_node_id = CAST(SUBSTRING(g.chcd_id,3) AS INTEGER),
-    geography_node_level = CAST(SUBSTRING(g.chcd_id,1,1) AS CHAR)
+INSERT INTO institutions_locatedin (entity_from_id, entity_to_id)
+SELECT CAST(SUBSTRING(n.chcd_id,3) AS INTEGER), g.chcd_id
 FROM temp_relationships r
          JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label = 'Institution'
          JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
-WHERE r.type = 'LOCATED_IN' AND Institutions.id = CAST(SUBSTRING(n.chcd_id,3) AS INTEGER);
+WHERE r.type = 'LOCATED_IN';
 
-UPDATE GeneralAreas
-SET geography_node_id = CAST(SUBSTRING(g.chcd_id,3) AS INTEGER),
-    geography_node_level = CAST(SUBSTRING(g.chcd_id,1,1) AS CHAR)
-FROM temp_relationships r
-         JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label = 'GeneralArea'
-         JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
-WHERE r.type = 'LOCATED_IN' AND GeneralAreas.id = CAST(SUBSTRING(n.chcd_id,3) AS INTEGER);
-
-UPDATE Events
-SET geography_node_id = CAST(SUBSTRING(g.chcd_id,3) AS INTEGER),
-    geography_node_level = CAST(SUBSTRING(g.chcd_id,1,1) AS CHAR)
+-- Update geography_node_id FK based on :LOCATED_IN
+INSERT INTO events_locatedin (entity_from_id, entity_to_id)
+SELECT CAST(SUBSTRING(n.chcd_id,3) AS INTEGER), g.chcd_id
 FROM temp_relationships r
          JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label = 'Event'
          JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
-WHERE r.type = 'LOCATED_IN' AND Events.id = CAST(SUBSTRING(n.chcd_id,3) AS INTEGER);
+WHERE r.type = 'LOCATED_IN';
 
-UPDATE GeographyNode
-SET parent_node_id = CAST(SUBSTRING(g.chcd_id, 3) AS INTEGER),
-    parent_node_level = CAST(SUBSTRING(g.chcd_id, 1, 1) AS CHAR)
+-- Update geography_node_id FK based on :LOCATED_IN
+INSERT INTO generalareas_locatedin (entity_from_id, entity_to_id)
+SELECT CAST(SUBSTRING(n.chcd_id,3) AS INTEGER), g.chcd_id
 FROM temp_relationships r
-         JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label IN ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
-         JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label IN ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
-WHERE r.type = 'INSIDE_OF' AND GeographyNode.id = CAST(SUBSTRING(n.chcd_id, 3) AS INTEGER);
+         JOIN temp_nodes n ON r.start_id = n.neo4j_id AND n.label = 'GeneralArea'
+         JOIN temp_nodes g ON r.end_id = g.neo4j_id AND g.label in ('Village', 'Township', 'County', 'Prefecture', 'Province', 'Nation')
+WHERE r.type = 'LOCATED_IN';
 
+
+-- Insert its own id as xxx_id FK if it is a xxx
+UPDATE GeographyNode
+SET nation_id = id
+WHERE id LIKE 'A%';
+UPDATE GeographyNode
+SET province_id = id
+WHERE id LIKE 'O%';
+UPDATE GeographyNode
+SET prefecture_id = id
+WHERE id LIKE 'F%';
+UPDATE GeographyNode
+SET county_id = id
+WHERE id LIKE 'Y%';
+UPDATE GeographyNode
+SET township_id = id
+WHERE id LIKE 'T%';
+
+-- Update all direct FKs based on temp_relationships
+UPDATE GeographyNode
+SET nation_id = CASE WHEN c.label = 'Nation' THEN c.chcd_id ELSE nation_id END,
+    province_id = CASE WHEN c.label = 'Province' THEN c.chcd_id ELSE province_id END,
+    prefecture_id = CASE WHEN c.label = 'Prefecture' THEN c.chcd_id ELSE prefecture_id END,
+    county_id = CASE WHEN c.label = 'County' THEN c.chcd_id ELSE county_id END,
+    township_id = CASE WHEN c.label = 'Township' THEN c.chcd_id ELSE township_id END
+FROM temp_relationships r
+    JOIN temp_nodes n ON r.start_id = n.neo4j_id
+    JOIN temp_nodes c ON r.end_id = c.neo4j_id
+WHERE r.type = 'INSIDE_OF' AND GeographyNode.id = n.chcd_id;
+
+-- Update all indirect FKs if FK is not NULL
+-- Update all nation_id
+UPDATE GeographyNode
+SET nation_id = g.nation_id
+FROM GeographyNode g
+WHERE GeographyNode.province_id = g.id;
+
+-- Update all province_id and nation_id
+UPDATE GeographyNode
+SET province_id = g.province_id,
+    nation_id = g.nation_id
+FROM GeographyNode g
+WHERE GeographyNode.prefecture_id = g.id;
+
+-- Update all prefecture_id, province_id and nation_id
+UPDATE GeographyNode
+SET prefecture_id = g.prefecture_id,
+    province_id = g.province_id,
+    nation_id = g.nation_id
+FROM GeographyNode g
+WHERE GeographyNode.county_id = g.id;
+
+-- Update all county_id, prefecture_id, province_id and nation_id
+UPDATE GeographyNode
+SET county_id = g.county_id,
+    prefecture_id = g.prefecture_id,
+    province_id = g.province_id,
+    nation_id = g.nation_id
+FROM GeographyNode g
+WHERE GeographyNode.township_id = g.id;
+
+-- Update all township_id, county_id, prefecture_id, province_id and nation_id
+UPDATE GeographyNode
+SET township_id = g.township_id,
+    county_id = g.county_id,
+    prefecture_id = g.prefecture_id,
+    province_id = g.province_id,
+    nation_id = g.nation_id
+FROM GeographyNode g
+WHERE GeographyNode.id = g.id;
