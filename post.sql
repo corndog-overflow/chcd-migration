@@ -1,5 +1,4 @@
 -- Connect to the database
-\c CHCD_Schema;
 
 -- Create base table for Geography Nodes
 CREATE TABLE GeographyNode
@@ -344,19 +343,22 @@ CREATE TABLE GeneralAreas_LocatedIn
 CREATE TABLE temp_nodes
 (
     neo4j_id                           INT PRIMARY KEY,
-    chcd_id                            VARCHAR,
     label                              VARCHAR,
+    chcd_id                            VARCHAR,
     abbreviation                       TEXT,
     alternative_chinese_name_hanzi     TEXT,
     alternative_chinese_name_romanized TEXT,
     alternative_name_western           TEXT,
     baptism                            TEXT,
+    baptismal_name_western             TEXT,
     beatification                      TEXT,
+    beatification_date                 TEXT,
     birth_day                          INTEGER,
     birth_month                        INTEGER,
     birth_place                        TEXT,
     birth_year                         INTEGER,
     burial_place                       TEXT,
+    canonization_date                  TEXT,
     canonization                       TEXT,
     china_start                        INTEGER,
     chinese_family_name_hanzi          TEXT,
@@ -389,9 +391,7 @@ CREATE TABLE temp_nodes
     institution_category               TEXT,
     institution_subcategory            TEXT,
     issue_frequency                    TEXT,
-    lat                                DECIMAL,
     latitude                           DECIMAL,
-    long                               DECIMAL,
     longitude                          DECIMAL,
     name_rom                           TEXT,
     name_wes                           TEXT,
