@@ -10,55 +10,52 @@ export function fetchNetworkConfines() {
         fetchNeo4jId(this.state.node_id, this.driver)
             .then((internalId) => {
                 if (this.state.node_id !== "") {
-                    nodeIdFilter = parseFloat(internalId) + ' '
+                    nodeIdFilter = parseFloat(internalId)
                 } else {
                     nodeIdFilter = ""
                 }
                 const session = this.driver.session();
                 const query =
-                    ` WITH people_relationships AS (
-                        SELECT n.start_year, n.end_year
-                        FROM people_presentat_institutions n
-                        WHERE n.entity_from_id = ${nodeIdFilter}
-                        UNION ALL
-                        SELECT n.start_year, n.end_year
-                        FROM people_presentat_events n
-                        WHERE n.entity_from_id = ${nodeIdFilter}
-                        UNION ALL
-                        SELECT n.start_year, n.end_year
-                        FROM people_involvedwith_publications n
-                        WHERE n.entity_from_id = ${nodeIdFilter}
-                        UNION ALL
-                        SELECT n.start_year, n.end_year
-                        FROM people_relatedto_people n
-                        WHERE n.entity_from_id = ${nodeIdFilter}
-                        UNION ALL
-                        SELECT n.start_year, n.end_year
-                        FROM people_partof_corporateentities n
-                        WHERE n.entity_from_id = ${nodeIdFilter}
-                        UNION ALL
-                        SELECT n.start_year, n.end_year
-                        FROM people_presentat_generalareas n
-                        WHERE n.entity_from_id = ${nodeIdFilter}
-                    )
-                        SELECT MIN(years) AS start, MAX(years) AS end
-                        FROM (SELECT n.birth_year AS years
-                              FROM people n
-                                       JOIN people_relationships t ON n.id = ${nodeIdFilter}
-                              UNION ALL
-                              SELECT n.death_year AS years
-                              FROM people n
-                                       JOIN people_relationships t ON n.id = ${nodeIdFilter}
-                              UNION ALL
-                              SELECT DISTINCT t.start_year AS years
-                              FROM people_relationships t
-                                       JOIN people n ON n.id = ${nodeIdFilter}
-                              UNION ALL
-                              SELECT DISTINCT t.end_year AS years
-                              FROM people_relationships t
-                                       JOIN people n ON n.id = ${nodeIdFilter}
-                              ) AS YearList
-                              `
+                    ` WITH people_relationships AS (SELECT n.start_year, n.end_year
+                                                    FROM people_presentat_institutions n
+                                                    WHERE n.entity_from_id = ${nodeIdFilter}
+                                                    UNION ALL
+                                                    SELECT n.start_year, n.end_year
+                                                    FROM people_presentat_events n
+                                                    WHERE n.entity_from_id = ${nodeIdFilter}
+                                                    UNION ALL
+                                                    SELECT n.start_year, n.end_year
+                                                    FROM people_involvedwith_publications n
+                                                    WHERE n.entity_from_id = ${nodeIdFilter}
+                                                    UNION ALL
+                                                    SELECT n.start_year, n.end_year
+                                                    FROM people_relatedto_people n
+                                                    WHERE n.entity_from_id = ${nodeIdFilter}
+                                                    UNION ALL
+                                                    SELECT n.start_year, n.end_year
+                                                    FROM people_partof_corporateentities n
+                                                    WHERE n.entity_from_id = ${nodeIdFilter}
+                                                    UNION ALL
+                                                    SELECT n.start_year, n.end_year
+                                                    FROM people_presentat_generalareas n
+                                                    WHERE n.entity_from_id = ${nodeIdFilter})
+                      SELECT MIN(years) AS start, MAX(years) AS end
+                      FROM (SELECT n.birth_year AS years
+                            FROM people n
+                                     JOIN people_relationships t ON n.id = ${nodeIdFilter}
+                            UNION ALL
+                            SELECT n.death_year AS years
+                            FROM people n
+                                     JOIN people_relationships t ON n.id = ${nodeIdFilter}
+                            UNION ALL
+                            SELECT DISTINCT t.start_year AS years
+                            FROM people_relationships t
+                                     JOIN people n ON n.id = ${nodeIdFilter}
+                            UNION ALL
+                            SELECT DISTINCT t.end_year AS years
+                            FROM people_relationships t
+                                     JOIN people n ON n.id = ${nodeIdFilter}) AS YearList
+                    `
 
                 session.run(query).then((results) => {
                     const networkConfines = results.records.map((record) => record.get('Confines'));
@@ -193,35 +190,40 @@ export function fetchNetworkResults() {
                     startFilter = this.state.start_year
                 }
 
-                const query = `MATCH (n)-[t]-(o)
-          WHERE id(n) = ` + nodeIdFilter + `
-          WITH DISTINCT n, t, o
-          CALL apoc.path.subgraphAll(n, {
-            maxLevel: ` + degreeFilter + `,
-            labelFilter: "` + peopleFilter + `Person|` + instFilter + `Institution|` + corpFilter + `CorporateEntity|` + eventFilter + `Event|` + pubFilter + `Publication|-Village|-Township|-County|-Prefecture|-Province"
-          })
-          YIELD nodes, relationships
-          WITH nodes, relationships
-          UNWIND nodes AS ender
-          MATCH (ender:Person)-[p]-(q)
-          WHERE ( 
-            (${endFilter} IS NOT NULL AND p.start_year >= ${endFilter}) OR
-            (${startFilter} IS NOT NULL AND p.end_year <= ${startFilter})
-          )
-          WITH collect(DISTINCT ender) AS endNodes
-          MATCH (y)
-          WHERE id(y) = ` + nodeIdFilter + `
-          CALL apoc.path.subgraphAll(y, {
-            maxLevel: ` + degreeFilter + `,
-            labelFilter: "` + peopleFilter + `Person|` + instFilter + `Institution|` + corpFilter + `CorporateEntity|` + eventFilter + `Event|` + pubFilter + `Publication|-Village|-Township|-County|-Prefecture|-Province",
-            blacklistNodes: endNodes
-          })
-          YIELD nodes, relationships
-          WITH nodes, relationships
-          RETURN {
-            nodes: [node in nodes | node {key: node.id, label: labels(node)[0], properties: properties(node)}],
-            links: [rel in relationships | rel {source: startNode(rel).id, target: endNode(rel).id, start_year: rel.start_year, end_year: rel.end_year}]
-          } as Graph`
+                const query = `WITH RECURSIVE SubgraphCTE AS (SELECT t.*,
+                                                                     1 AS level
+                                                              FROM Relationship t
+                                                              WHERE (t.entity_from_id = ${nodeIdFilter} OR t.entity_to_id = ${nodeIdFilter})
+                                                                AND t.entity_to_id like ${nodeTypeFilter}
+                                                                AND (t.start_year >= ${startYearFilter} AND
+                                                                     (t.start_year <= ${endYearFilter} OR t.end_year <= ${endYearFilter}))
+                                                              UNION ALL
+                                                              SELECT t.*,
+                                                                     sg.level + 1
+                                                              FROM Relationship t
+                                                                       JOIN SubgraphCTE sg
+                                                                            ON (sg.entity_to_id = t.entity_from_id AND
+                                                                                t.entity_from_id like ${nodeTypeFilter})
+                                                                                OR (sg.entity_to_id = t.entity_to_id AND
+                                                                                    t.entity_to_id like
+                                                                                    ${nodeTypeFilter})
+                                                              WHERE sg.level < ${degreeFilter}
+                                                                AND (t.start_year >= ${startYearFilter} AND
+                                                                     (t.start_year <= ${endYearFilter} OR t.end_year <= ${endYearFilter})))
+                               SELECT json_build_object(
+                                              'nodes', json_agg(DISTINCT jsonb_build_object(
+                                               'key', n.id,
+                                               'properties', n.*
+                                                                         )),
+                                              'links', json_agg(DISTINCT jsonb_build_object(
+                                               'source', t.entity_from_id,
+                                               'target', t.entity_to_id,
+                                               'start_year', t.start_year,
+                                               'end_year', t.end_year
+                                                                         ))
+                                      ) AS Graph
+                               FROM SubgraphCTE t
+                                        JOIN nodes n ON t.entity_from_id = n.id OR t.entity_to_id = n.id;`
 
                 session
                     .run(query)

@@ -12,7 +12,7 @@ export function fetchNetworkIndexes() {
                                  id                                                   AS value
                  FROM People p
                  WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
-                       ('${value}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                       (${value}, ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
                         'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
                 `
 
@@ -29,7 +29,7 @@ export function fetchNetworkIndexes() {
                 `SELECT DISTINCT 'institution' AS type, name_western AS label, id AS value
                  FROM CorporateEntities ce
                  WHERE ARRAY [ce.full_text_name_content, ce.full_text_search_content] &@~
-                       ('${value}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                       (${value}, ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
                         'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
                 `
 
@@ -63,7 +63,7 @@ export function fetchPAffIndex() {
              FROM CorporateEntities ce
              WHERE corporate_entity_category = 'Religious Body'
                AND ARRAY [ce.full_text_name_content, ce.full_text_search_content] &@~
-                   ('${value}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                   (${value}, ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
             `
         session5.run(query5).then((results) => {
@@ -103,7 +103,7 @@ export function fetchAffIndex() {
              FROM CorporateEntities ce
              WHERE corporate_entity_category = 'Religious Body'
                AND ARRAY [ce.full_text_name_content, ce.full_text_search_content] &@~
-                   ('${value}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                   (${value}, ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
             `
 
@@ -139,7 +139,7 @@ export function fetchNatIndex() {
             `SELECT DISTINCT 'affiliation' AS type, nationality AS value, nationality AS label
              FROM People p
              WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
-                   ('${value}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                   (${value}, ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
             `
 
@@ -215,6 +215,4 @@ export function fetchMapIndexes() {
         this.setState({eventsCatsIndex});
         session.close()
     });
-
-};
-
+}
