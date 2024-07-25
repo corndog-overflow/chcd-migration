@@ -1,7 +1,10 @@
--- Connect to the database
+CREATE TABLE Nodes
+(
+    id TEXT PRIMARY KEY
+);
 
 -- Create base table for Geography Nodes
-CREATE TABLE GeographyNode
+CREATE TABLE GeographyNodes
 (
     id            TEXT PRIMARY KEY,
     name_wes      TEXT,
@@ -13,18 +16,18 @@ CREATE TABLE GeographyNode
     county_id     TEXT,
     prefecture_id TEXT,
     province_id   TEXT,
-    nation_id    TEXT,
-    FOREIGN KEY (township_id) REFERENCES GeographyNode (id),
-    FOREIGN KEY (county_id) REFERENCES GeographyNode (id),
-    FOREIGN KEY (prefecture_id) REFERENCES GeographyNode (id),
-    FOREIGN KEY (province_id) REFERENCES GeographyNode (id),
-    FOREIGN KEY (nation_id) REFERENCES GeographyNode (id)
-);
+    nation_id     TEXT,
+    FOREIGN KEY (township_id) REFERENCES GeographyNodes (id),
+    FOREIGN KEY (county_id) REFERENCES GeographyNodes (id),
+    FOREIGN KEY (prefecture_id) REFERENCES GeographyNodes (id),
+    FOREIGN KEY (province_id) REFERENCES GeographyNodes (id),
+    FOREIGN KEY (nation_id) REFERENCES GeographyNodes (id)
+) INHERITS (Nodes);
 
 -- Create tables for main entities
 CREATE TABLE CorporateEntities
 (
-    id                             INT PRIMARY KEY,
+    id                             TEXT PRIMARY KEY,
     name_western                   TEXT,
     alternative_name_western       TEXT,
     chinese_name_hanzi             TEXT,
@@ -47,11 +50,11 @@ CREATE TABLE CorporateEntities
     end_year                       INTEGER,
     notes                          TEXT,
     source                         TEXT
-);
+) INHERITS (Nodes);
 
 CREATE TABLE Institutions
 (
-    id                             INT PRIMARY KEY,
+    id                             TEXT PRIMARY KEY,
     name_western                   TEXT,
     alternative_name_western       TEXT,
     chinese_name_hanzi             TEXT,
@@ -72,11 +75,11 @@ CREATE TABLE Institutions
     end_year                       INTEGER,
     notes                          TEXT,
     source                         TEXT
-);
+) INHERITS (Nodes);
 
 CREATE TABLE People
 (
-    id                                 INT PRIMARY KEY,
+    id                                 TEXT PRIMARY KEY,
     family_name_western                TEXT,
     given_name_western                 TEXT,
     alternative_name_western           TEXT,
@@ -114,11 +117,11 @@ CREATE TABLE People
     canonization                       TEXT,
     notes                              TEXT,
     source                             TEXT
-);
+) INHERITS (Nodes);
 
 CREATE TABLE Publications
 (
-    id                                 INT PRIMARY KEY,
+    id                                 TEXT PRIMARY KEY,
     name_western                       TEXT,
     alternative_name_western           TEXT,
     chinese_name_hanzi                 TEXT,
@@ -143,11 +146,11 @@ CREATE TABLE Publications
     end_year                           INTEGER,
     notes                              TEXT,
     source                             TEXT
-);
+) INHERITS (Nodes);
 
 CREATE TABLE Events
 (
-    id                             INT PRIMARY KEY,
+    id                             TEXT PRIMARY KEY,
     name_western                   TEXT,
     alternative_name_western       TEXT,
     chinese_name_hanzi             TEXT,
@@ -166,20 +169,20 @@ CREATE TABLE Events
     end_year                       INTEGER,
     notes                          TEXT,
     source                         TEXT
-);
+) INHERITS (Nodes);
 
 CREATE TABLE GeneralAreas
 (
-    id                       INT PRIMARY KEY,
+    id                       TEXT PRIMARY KEY,
     name_western             TEXT,
     alternative_name_western TEXT
-);
+) INHERITS (Nodes);
 
 -- Create relationship tables
 CREATE TABLE Relationship
 (
-    entity_from_id INTEGER,
-    entity_to_id   INTEGER,
+    entity_from_id TEXT,
+    entity_to_id   TEXT,
     rel_type       TEXT,
     start_day      INTEGER,
     start_month    INTEGER,
@@ -317,34 +320,28 @@ CREATE TABLE Publications_InvolvedWith_GeneralAreas
 
 CREATE TABLE Institutions_LocatedIn
 (
-    entity_from_id INTEGER,
-    entity_to_id   TEXT,
     FOREIGN KEY (entity_from_id) REFERENCES Institutions (id),
-    FOREIGN KEY (entity_to_id) REFERENCES GeographyNode (id)
-);
+    FOREIGN KEY (entity_to_id) REFERENCES GeographyNodes (id)
+) INHERITS (LocatedIn);
 
 CREATE TABLE Events_LocatedIn
 (
-    entity_from_id INTEGER,
-    entity_to_id TEXT,
     FOREIGN KEY (entity_from_id) REFERENCES Events (id),
-    FOREIGN KEY (entity_to_id) REFERENCES GeographyNode (id)
-);
+    FOREIGN KEY (entity_to_id) REFERENCES GeographyNodes (id)
+) INHERITS (LocatedIn);
 
 CREATE TABLE GeneralAreas_LocatedIn
 (
-    entity_from_id INTEGER,
-    entity_to_id TEXT,
     FOREIGN KEY (entity_from_id) REFERENCES GeneralAreas (id),
-    FOREIGN KEY (entity_to_id) REFERENCES GeographyNode (id)
-);
+    FOREIGN KEY (entity_to_id) REFERENCES GeographyNodes (id)
+) INHERITS (LocatedIn);
 
 -- Create tmp tables for import
 CREATE TABLE temp_nodes
 (
     neo4j_id                           INT PRIMARY KEY,
-    label                              VARCHAR,
-    chcd_id                            VARCHAR,
+    label                              TEXT,
+    chcd_id                            TEXT,
     abbreviation                       TEXT,
     alternative_chinese_name_hanzi     TEXT,
     alternative_chinese_name_romanized TEXT,
@@ -420,9 +417,9 @@ CREATE TABLE temp_nodes
 
 CREATE TABLE temp_relationships
 (
-    start_id    INTEGER,
-    end_id      INTEGER,
-    type        VARCHAR,
+    start_id    INT,
+    end_id      INT,
+    type        TEXT,
     end_day     INTEGER,
     end_month   INTEGER,
     end_year    INTEGER,
