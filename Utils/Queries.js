@@ -20,37 +20,37 @@ export function fetchSearch() {
     let searchProp = this.state.search;
 
     const results = `SELECT DISTINCT *
-                   FROM (SELECT 'Person' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
-                         FROM People p
-                         WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
-                               ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                         UNION ALL
-                         SELECT 'Institution' AS label, i.id, pgroonga_score(tableoid, ctid) AS score
-                         FROM Institutions i
-                         WHERE ARRAY [i.full_text_name_content, i.full_text_search_content] &@~
-                               ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                         UNION ALL
-                         SELECT 'CorporateEntity' AS label, c.id, pgroonga_score(tableoid, ctid) AS score
-                         FROM CorporateEntities c
-                         WHERE ARRAY [c.full_text_name_content, c.full_text_search_content] &@~
-                               ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                         UNION ALL
-                         SELECT 'Event' AS label, e.id, pgroonga_score(tableoid, ctid) AS score
-                         FROM Events e
-                         WHERE ARRAY [e.full_text_name_content, e.full_text_search_content] &@~
-                               ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                         UNION ALL
-                         SELECT 'Publication' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
-                         FROM Publications p
-                         WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
-                               ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers) as unioned
-                   ORDER BY score DESC
-                   LIMIT 1000;`
+                     FROM (SELECT 'Person' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
+                           FROM People p
+                           WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
+                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                           UNION ALL
+                           SELECT 'Institution' AS label, i.id, pgroonga_score(tableoid, ctid) AS score
+                           FROM Institutions i
+                           WHERE ARRAY [i.full_text_name_content, i.full_text_search_content] &@~
+                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                           UNION ALL
+                           SELECT 'CorporateEntity' AS label, c.id, pgroonga_score(tableoid, ctid) AS score
+                           FROM CorporateEntities c
+                           WHERE ARRAY [c.full_text_name_content, c.full_text_search_content] &@~
+                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                           UNION ALL
+                           SELECT 'Event' AS label, e.id, pgroonga_score(tableoid, ctid) AS score
+                           FROM Events e
+                           WHERE ARRAY [e.full_text_name_content, e.full_text_search_content] &@~
+                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                           UNION ALL
+                           SELECT 'Publication' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
+                           FROM Publications p
+                           WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
+                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers) as unioned
+                     ORDER BY score DESC
+                     LIMIT 1000;`
 
     this.setState({
         nodeArray: [],
@@ -816,75 +816,94 @@ export function fetchNetworkResults() {
 //QUERY FOR SELECTED NODE + REDUCE BREADCRUMB (CLICK IN POPUP CONTENT)
 export function selectSwitch(event, actionType, order = null) {
     this.setState({nodeSelect: event});
-    fetchNeo4jId(event, this.driver)
-        .then((internalId) => {
-            const session = this.driver.session()
-            const selectquery = sql`
-                SELECT
-                    --     n.id AS key,
-                    LEFT(n.id, 1) AS select_kind,
-                    --     n.* AS select_node,
-                    --     p.id AS key2,
-                    --     p.* AS node2,
-                    LEFT(p.id, 1) AS rel_kind,
-                    -- t.*           AS rel,
-                    'none'        AS rel_locat
-                FROM Relationship t
-                         JOIN
-                     Nodes n ON t.entity_from_id = n.id OR t.entity_to_id = n.id
-                         JOIN
-                     Nodes p ON t.entity_from_id = p.id OR t.entity_to_id = p.id
-                WHERE n.id = ${internalId}
-                ORDER BY t.start_year;
-            `;
-            // IS NULL in original query
+    const results = sql`
+        SELECT
+            --     n.id AS key,
+            LEFT(n.id, 1) AS select_kind,
+            --     n.* AS select_node,
+            --     p.id AS key2,
+            --     p.* AS node2,
+            LEFT(p.id, 1) AS rel_kind,
+            -- t.*           AS rel,
+            'none'        AS rel_locat
+        FROM Relationship t
+                 JOIN
+             Nodes n ON t.entity_from_id = n.id OR t.entity_to_id = n.id
+                 JOIN
+             Nodes p ON t.entity_from_id = p.id OR t.entity_to_id = p.id
+        WHERE n.id = ${event}
+        ORDER BY t.start_year;
+    `;
+    // IS NULL in original query
 
-            session.run(selectquery).then((results) => {
-                const selectArray = results.records.map((record) => record.get('SelectNodes'));
-                this.setState({selectArray});
+    const selectArray = results.records.map((record) => record.get('SelectNodes'));
+    this.setState({selectArray});
 
-                if (actionType === 'append') {
-                    this.breadCrumbChainer();
-                } else if (actionType === 'reduce') {
-                    this.breadCrumbReducer(event, order);
-                }
+    if (actionType === 'append') {
+        this.breadCrumbChainer();
+    } else if (actionType === 'reduce') {
+        this.breadCrumbReducer(event, order);
+    }
 
-                session.close()
-            });
+    const result2 = sql`SELECT n.id                               AS start_id,
+                               CASE
+                                   WHEN i.name_western IS NOT NULL THEN i.name_western
+                                   ELSE pe.given_name_western || ' ' || UPPER(pe.family_name_western)
+                                   END                            AS start_name_western,
+                               CASE
+                                   WHEN i.chinese_name_hanzi IS NOT NULL THEN i.chinese_name_hanzi
+                                   ELSE pe.chinese_family_name_hanzi || '' || pe.chinese_given_name_hanzi
+                                   END                            AS start_name_chinese,
+--                                     labels(n)[1] AS start_type,
+                               p.id                               AS end_id,
+                               CASE
+                                   WHEN i.name_western IS NOT NULL THEN i.name_western
+                                   ELSE pe.given_name_western || ' ' || UPPER(pe.family_name_western)
+                                   END                            AS end_name_western,
+                               CASE
+                                   WHEN i.chinese_name_hanzi IS NOT NULL THEN i.chinese_name_hanzi
+                                   ELSE pe.chinese_family_name_hanzi || '' || pe.chinese_given_name_hanzi
+                                   END                            AS end_name_chinese,
+--                                     CASE
+--                                         WHEN array_length(labels(p), 1) = 1 THEN labels(p)[1]
+--                                         ELSE 'Geography'
+--                                         END AS end_type,
+--                                     type(t) AS rel_kind,
+                               t.rel_type                         AS rel_type,
+--                                     CASE
+--                                         WHEN CAST(t.start_year AS integer) > 0 THEN CAST(t.start_year AS integer)
+--                                         ELSE ''
+--                                         END AS start_year,
+--                                     CASE
+--                                         WHEN CAST(t.end_year AS integer) > 0 THEN CAST(t.end_year AS integer)
+--                                         ELSE ''
+--                                         END AS end_year,
+                               COALESCE(t.source, '') || CASE
+                                                             WHEN pe.source IS NOT NULL THEN ' / '
+                                                             ELSE ''
+                                   END || COALESCE(pe.source, '') AS sources,
+                               COALESCE(t.notes, '') || CASE
+                                                            WHEN pe.notes IS NOT NULL THEN ' / '
+                                                            ELSE ''
+                                   END || COALESCE(pe.notes, '')  AS notes
+                        FROM Nodes n
+                                 JOIN Relationship t ON n.id = t.entity_from_id OR n.id = t.entity_to_id
+                                 JOIN Nodes p ON t.entity_from_id = p.id OR t.entity_to_id = p.id
+                                 LEFT JOIN People pe ON n.id = pe.id OR p.id = pe.id
+                                 LEFT JOIN Events e ON n.id = e.id OR p.id = e.id
+                                 LEFT JOIN Publications pu ON n.id = pu.id OR p.id = pu.id
+                                 LEFT JOIN CorporateEntities ce ON n.id = ce.id OR p.id = ce.id
+                                 LEFT JOIN Institutions i ON n.id = i.id OR p.id = i.id
+                        WHERE pe.id = ${event};`
 
-            const session2 = this.driver.session()
-            const selectquery2 = `
-    MATCH (n)-[t]-(p) WHERE ID(n) =` + internalId + `
-    RETURN {start_id:n.id, 
-      start_name_western: CASE WHEN n.name_western IS NOT NULL THEN n.name_western ELSE n.given_name_western + ' ' + toUpper(n.family_name_western) END,
-      start_name_chinese: CASE WHEN n.chinese_name_hanzi IS NOT NULL THEN n.chinese_name_hanzi ELSE n.chinese_family_name_hanzi + '' + n.chinese_given_name_hanzi END,
-      start_type: labels(n)[0], 
-      end_id:p.id,
-      end_name_western: CASE WHEN p.name_western IS NOT NULL THEN p.name_western ELSE p.given_name_western + ' ' + toUpper(p.family_name_western) END, 
-      end_name_chinese: CASE WHEN p.chinese_name_hanzi IS NOT NULL THEN p.chinese_name_hanzi ELSE p.chinese_family_name_hanzi + '' + p.chinese_given_name_hanzi END, 
-      end_type: CASE WHEN size(labels(p)) = 1 THEN labels(p)[0] ELSE "Geography" END,  // Check the number of labels for p
-      rel_kind: type(t), rel_type: t.rel_type, start_year: CASE WHEN toInteger(t.start_year) > 0 THEN toInteger(t.start_year) ELSE "" END, 
-      end_year: CASE WHEN toInteger(t.end_year) > 0 THEN toInteger(t.end_year) ELSE "" END, 
-      sources: COALESCE(t.source ,"")+ CASE WHEN p.source IS NOT NULL THEN ' / ' ELSE '' END + COALESCE(p.source ,""), 
-    notes: COALESCE(t.notes ,"") + CASE WHEN p.notes IS NOT NULL THEN ' / ' ELSE '' END + COALESCE(p.notes ,"")
-    } as SelectNodes `
-            session2.run(selectquery2).then((results) => {
-                const printArray = results.records.map((record) => record.get('SelectNodes'));
-                this.setState({printArray});
-                session2.close()
-            });
+    const printArray = result2;
+    this.setState({printArray});
 
-            const session3 = this.driver.session()
-            const selectquery3 = `MATCH (n) WHERE ID(n) =` + internalId + ` RETURN n{.*} as SelectNodes `
-            session3.run(selectquery3).then((results) => {
-                const basicArray = results.records.map((record) => record.get('SelectNodes'));
-                this.setState({basicArray});
-                session3.close()
-            });
-        })
-        .catch((error) => {
-            console.error("Error:", error);
-        });
+    const result3 = sql`SELECT *
+                        FROM Nodes
+                        WHERE id = ${event};`
+    const basicArray = result3;
+    this.setState({basicArray});
 }
 
 //QUERY FOR SELECTED NODE + APPEND BREADCRUMB + OPEN POPUP (CLICK IN CHILD VIEW)
@@ -982,7 +1001,9 @@ export async function fetchAffIndex() {
 
 //PERSON NATIONALITY INDEX
 export async function fetchNatIndex() {
-    if (this.state.inputValueNat === '') { return null }
+    if (this.state.inputValueNat === '') {
+        return null
+    }
 
     let value = this.state.inputValueNat.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.");
 
@@ -1428,61 +1449,68 @@ export function fetchInstitutionsData() {
         //SET CENTRAL NODE
         let nodeIdFilter = this.state.node_id
 
-                //FETCH COUNTS
-                const result1 = sql`
-      MATCH (n) WHERE id(n)=` + nodeIdFilter + `
-      WITH n
-      CALL {
-        WITH n
-        MATCH (n)--(p:Person)
-        RETURN count(DISTINCT p) as person
-      }
-      CALL {
-        WITH n
-        MATCH (n)--(p:Event)
-        RETURN count(DISTINCT p) as eventcount
-      }
-      CALL apoc.cypher.run('MATCH (t:CorporateEntity)-[]-(p) wHERE id(p)=` + nodeIdFilter + ` WITH DISTINCT t RETURN count(*) as count',{}) YIELD value as corp
-      RETURN n as node, person as count, eventcount, corp.count as corpcount`
-                        const nodeArray = result1[0];
-                        const totalPeople = results.records.map((record) => record.get('count'));
-                        const totalInstitutions = 1
-                        const totalCorporateEntities = results.records.map((record) => record.get('corpcount'));
-                        const totalEvents = results.records.map((record) => record.get('eventcount'));
-                        if (nodeArray.length === 0) {
-                            this.setState({noresults: "noresults"})
-                        } else {
-                            this.setState({nodeArray});
-                            this.setState({totalPeople})
-                            this.setState({totalInstitutions})
-                            this.setState({totalCorporateEntities})
-                            this.setState({totalEvents})
-                            this.setState({noresults: "noresults hide"})
-                            this.setState({content: "loaded"})
-                        }
+        //FETCH COUNTS
+        const result1 = sql`
+            SELECT n.id                                     AS node,
+                   (SELECT COUNT(DISTINCT p.id)
+                    FROM People p
+                             JOIN Relationship r ON p.id = r.entity_from_id OR p.id = r.entity_to_id
+                    WHERE r.entity_from_id = ${nodeIdFilter}
+                       OR r.entity_to_id = ${nodeIdFilter}) AS count,
+                   (SELECT COUNT(DISTINCT e.id)
+                    FROM Events e
+                             JOIN Relationship r ON e.id = r.entity_from_id OR e.id = r.entity_to_id
+                    WHERE r.entity_from_id = ${nodeIdFilter}
+                       OR r.entity_to_id = ${nodeIdFilter}) AS eventcount,
+                   (SELECT COUNT(DISTINCT t.id)
+                    FROM CorporateEntities t
+                             JOIN Relationship r ON t.id = r.entity_from_id OR t.id = r.entity_to_id
+                    WHERE r.entity_from_id = ${nodeIdFilter}
+                       OR r.entity_to_id = ${nodeIdFilter}) AS corpcount
+            FROM Nodes n
+            WHERE n.id = ${nodeIdFilter};
+        `
 
-                //FETCH (AND CLEAN) GENDER COUNTS
-                const result2 = sql`MATCH (n) WHERE id(n)=` + nodeIdFilter + `
-      CALL {
-          WITH n
-          MATCH (n)--(p:Person)
-          RETURN DISTINCT p
-      }
-      WITH p.gender AS gender, count(*) AS count
-      RETURN DISTINCT {gender: gender, count: count} AS List`
-                    const genderArray = results.records.map((record) => record.get('List', 'gender'));
-                    let genders = [];
-                    for (let i = 0; i < genderArray.length; i++) {
-                        this.renameProperty(genderArray[i], 'gender', 'key')
-                        this.renameProperty(genderArray[i], 'count', 'value')
-                        {
-                            genders.push(genderArray[i])
-                        }
-                    }
-                    this.setState({genders});
+        const nodeArray = result1[0];
+        const totalPeople = nodeArray['count'];
+        const totalInstitutions = 1
+        const totalCorporateEntities = nodeArray['corpcount'];
+        const totalEvents = nodeArray['eventcount'];
+        if (nodeArray.length === 0) {
+            this.setState({noresults: "noresults"})
+        } else {
+            this.setState({nodeArray});
+            this.setState({totalPeople})
+            this.setState({totalInstitutions})
+            this.setState({totalCorporateEntities})
+            this.setState({totalEvents})
+            this.setState({noresults: "noresults hide"})
+            this.setState({content: "loaded"})
+        }
 
-                // FETCH GENDER ACTIVITY
-                const result2b = `
+        //FETCH (AND CLEAN) GENDER COUNTS
+        const result2 = sql`
+            SELECT p.gender AS gender,
+                   COUNT(*) AS count
+            FROM People p
+                     JOIN
+                 Relationship r ON p.id = r.entity_from_id OR p.id = r.entity_to_id
+            WHERE r.entity_from_id = ${nodeIdFilter}
+               OR r.entity_to_id = ${nodeIdFilter}
+            GROUP BY p.gender;`
+
+        const genderArray = result2[0].map(row => ({
+            key: row[0],
+            value: row[1]
+        }));
+        let genders = [];
+        for (let i = 0; i < genderArray.length; i++) {
+            genders.push(genderArray[i])
+        }
+        this.setState({genders});
+
+        // FETCH GENDER ACTIVITY
+        const result2b = `
     MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
@@ -1508,12 +1536,12 @@ export function fetchInstitutionsData() {
     } as item2 ORDER BY item2.info
     RETURN item2 as List
       `
-                    const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
-                    const genderList = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
-                    this.setState({genderList})
+        const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
+        const genderList = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
+        this.setState({genderList})
 
-                //FETCH NATIONALITY
-                const result3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH NATIONALITY
+        const result3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
       MATCH (n)--(p:Person) WHERE p.nationality <> "Unknown"
@@ -1521,23 +1549,23 @@ export function fetchInstitutionsData() {
     }
     WITH p.nationality AS nationality, count(*) AS count
     RETURN DISTINCT {info: nationality, count: count} AS List ORDER BY List.count`
-                    const nationalityList = results.records.map((record) => record.get('List', 'info'));
-                    const nationality = nationalityList.filter(d => d.count >= 1)
-                    this.setState({nationality})
+        const nationalityList = results.records.map((record) => record.get('List', 'info'));
+        const nationality = nationalityList.filter(d => d.count >= 1)
+        this.setState({nationality})
 
-                //FETCH NATIONALITY (NULL)
-                const result4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH NATIONALITY (NULL)
+        const result4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
         WITH n
         MATCH (n)--(p:Person) WHERE p.nationality IS NULL OR p.nationality = "Unknown"
         RETURN DISTINCT p
     }
     RETURN count(p) as Count`
-                    const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
-                    this.setState({nationalityNull})
+        const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
+        this.setState({nationalityNull})
 
-                //FETCH PEOPLE PRESENT BY YEAR
-                const result8 = `
+        //FETCH PEOPLE PRESENT BY YEAR
+        const result8 = `
     MATCH (p) WHERE id(p)=` + nodeIdFilter + `
     CALL {
       WITH p
@@ -1548,13 +1576,12 @@ export function fetchInstitutionsData() {
     WITH name, apoc.coll.flatten(collect(years)) as year_list
     UNWIND year_list as all_years
     RETURN {info: toInteger(all_years), count: toInteger(count(distinct name))} as List  ORDER BY List.info`
-                    const instList = results.records.map((record) => record.get('List', 'info'));
-                    const instDateList = instList.filter(d => (d.count >= 1 && d.info >= 1550 && d.info <= 1950))
-                    this.setState({instDateList})
+        const instList = results.records.map((record) => record.get('List', 'info'));
+        const instDateList = instList.filter(d => (d.count >= 1 && d.info >= 1550 && d.info <= 1950))
+        this.setState({instDateList})
 
-                //FETCH CHRISTIAN_TRADITION
-                const session9 = this.driver.session();
-                const query9 = `
+        //FETCH CHRISTIAN_TRADITION
+        const result9 = `
     MATCH (p) WHERE id(p)=` + nodeIdFilter + `
     CALL {
       WITH p
@@ -1564,23 +1591,19 @@ export function fetchInstitutionsData() {
     }
     RETURN DISTINCT {christian_tradition: name, count: Count} AS List
     `
-                session9.run(query9).then((results) => {
-                    const christianTraditionList = results.records.map((record) => record.get('List', 'christian_tradition'));
-                    let christianTradition = [];
-                    for (let i = 0; i < christianTraditionList.length; i++) {
-                        this.renameProperty(christianTraditionList[i], 'christian_tradition', 'key')
-                        this.renameProperty(christianTraditionList[i], 'count', 'value')
-                        {
-                            christianTradition.push(christianTraditionList[i])
-                        }
-                    }
-                    this.setState({christianTradition})
-                    session9.close()
-                })
+        const christianTraditionList = results.records.map((record) => record.get('List', 'christian_tradition'));
+        let christianTradition = [];
+        for (let i = 0; i < christianTraditionList.length; i++) {
+            this.renameProperty(christianTraditionList[i], 'christian_tradition', 'key')
+            this.renameProperty(christianTraditionList[i], 'count', 'value')
+            {
+                christianTradition.push(christianTraditionList[i])
+            }
+        }
+        this.setState({christianTradition})
 
-                //FETCH RELIGIOUS_FAMILY
-                const session10 = this.driver.session();
-                const query10 = `
+        //FETCH RELIGIOUS_FAMILY
+        const result10 = `
     MATCH (p) WHERE id(p)=` + nodeIdFilter + `
     CALL {
       WITH p
@@ -1592,58 +1615,45 @@ export function fetchInstitutionsData() {
     }
     RETURN DISTINCT {religious_family: name, count: Count} AS List
     `
-                session10.run(query10).then((results) => {
-                    const religiousFamilyList = results.records.map((record) => record.get('List', 'religious_family'));
-                    const religiousFamilyClean = religiousFamilyList.filter(d => d.count >= 0)
-                    let religiousFamily = [];
-                    for (let i = 0; i < religiousFamilyClean.length; i++) {
-                        this.renameProperty(religiousFamilyClean[i], 'religious_family', 'key')
-                        this.renameProperty(religiousFamilyClean[i], 'count', 'value')
-                        {
-                            religiousFamily.push(religiousFamilyClean[i])
-                        }
-                    }
-                    this.setState({religiousFamily})
-                    session10.close()
-                })
-
-                //FETCH RELIGIOUS_FAMILY NULL
-                const session11 = this.driver.session();
-                const query11 = `
-        MATCH (p) WHERE id(p)=` + nodeIdFilter + `
-        CALL {
-          WITH p
-          MATCH (p)--(n:Person)--(t:CorporateEntity) WHERE t.religious_family IS NULL
-          RETURN count(DISTINCT n) AS count
+        const religiousFamilyList = results.records.map((record) => record.get('List', 'religious_family'));
+        const religiousFamilyClean = religiousFamilyList.filter(d => d.count >= 0)
+        let religiousFamily = [];
+        for (let i = 0; i < religiousFamilyClean.length; i++) {
+            this.renameProperty(religiousFamilyClean[i], 'religious_family', 'key')
+            this.renameProperty(religiousFamilyClean[i], 'count', 'value')
+            {
+                religiousFamily.push(religiousFamilyClean[i])
+            }
         }
-        RETURN count AS Count
-        `
-                session11.run(query11).then((results) => {
-                    const religiousFamilyNullValues = results.records.map((record) => record.get('Count', 'religious_family'));
-                    this.setState({religiousFamilyNullValues})
-                    session11.close()
-                })
+        this.setState({religiousFamily})
 
-                //FETCH CHRISTIAN TRADITION NULL
-                const session12 = this.driver.session();
-                const query12 = `
-        MATCH (p) WHERE id(p)=` + nodeIdFilter + `
-        CALL {
-          WITH p
-          MATCH (p)--(n:Person)--(t:CorporateEntity) WHERE t.christian_tradition IS NULL
-          RETURN count(DISTINCT n) AS count
-        }
-        RETURN count AS Count
-      `
-                session12.run(query12).then((results) => {
-                    const christianTraditionNullValues = results.records.map((record) => record.get('Count', 'christian_tradition'));
-                    this.setState({christianTraditionNullValues})
-                    session12.close()
-                })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
+        //FETCH RELIGIOUS_FAMILY NULL
+        const result11 = sql`
+            SELECT COUNT(DISTINCT n.id)
+            FROM Nodes p
+                     JOIN Relationship r ON p.id = r.entity_from_id OR p.id = r.entity_to_id
+                     JOIN People n ON r.entity_from_id = n.id OR r.entity_to_id = n.id
+                     JOIN people_partof_corporateentities pn ON n.id = pn.entity_from_id OR n.id = pn.entity_to_id
+                     JOIN CorporateEntities t ON n.id = t.id
+            WHERE p.id = ${nodeIdFilter}
+              AND t.religious_family IS NULL;`
+        const religiousFamilyNullValues = result11[0]["count"];
+        this.setState({religiousFamilyNullValues})
 
+
+        //FETCH CHRISTIAN TRADITION NULL
+        const result12 = sql`
+            SELECT COUNT(DISTINCT n.id)
+            FROM Nodes p
+                     JOIN Relationship r ON p.id = r.entity_from_id OR p.id = r.entity_to_id
+                     JOIN People n ON r.entity_from_id = n.id OR r.entity_to_id = n.id
+                     JOIN people_partof_corporateentities pn ON n.id = pn.entity_from_id OR n.id = pn.entity_to_id
+                     JOIN CorporateEntities t ON n.id = t.id
+            WHERE p.id = ${nodeIdFilter}
+              AND t.christian_tradition IS NULL;`
+
+        const christianTraditionNullValues = result12[0]["count"];
+        this.setState({christianTraditionNullValues})
     }
 }
 
@@ -1676,17 +1686,14 @@ export function fetchCorporateEntitiesData() {
 
         //SET CENTRAL NODE
         let nodeIdFilter;
-        fetchNeo4jId(this.state.node_id, this.driver)
-            .then((internalId) => {
-                if (this.state.node_id !== "") {
-                    nodeIdFilter = '' + parseFloat(internalId) + ' '
-                } else {
-                    nodeIdFilter = ""
-                }
+        if (this.state.node_id !== "") {
+            nodeIdFilter = this.state.node_id
+        } else {
+            nodeIdFilter = ""
+        }
 
-                //FETCH COUNTS
-                const session = this.driver.session();
-                const query = `
+        //FETCH COUNTS
+        const results = `
       MATCH (n) WHERE id(n)=` + nodeIdFilter + `
       WITH n
       CALL {
@@ -1709,33 +1716,26 @@ export function fetchCorporateEntitiesData() {
       }
       CALL apoc.cypher.run('MATCH (t:CorporateEntity)-[]-(p) WHERE id(p)=` + nodeIdFilter + ` WITH DISTINCT t RETURN count(*) as count',{}) YIELD value as corp
       RETURN n as node, person as count, instcount, eventcount, corp.count as corpcount`
-                console.log(query)
-                session
-                    .run(query)
-                    .then((results) => {
-                        const newArray = results.records.map((record) => record.get('node'));
-                        const nodeArray = newArray[0];
-                        const totalPeople = results.records.map((record) => record.get('count'));
-                        const totalInstitutions = results.records.map((record) => record.get('instcount'));
-                        const totalCorporateEntities = results.records.map((record) => record.get('corpcount'));
-                        const totalEvents = results.records.map((record) => record.get('eventcount'));
-                        if (nodeArray.length === 0) {
-                            this.setState({noresults: "noresults"})
-                        } else {
-                            this.setState({nodeArray});
-                            this.setState({totalPeople});
-                            this.setState({totalInstitutions});
-                            this.setState({totalCorporateEntities});
-                            this.setState({totalEvents});
-                            this.setState({noresults: "noresults hide"})
-                            this.setState({content: "loaded"})
-                        }
-                        session.close()
-                    });
+        const newArray = results.records.map((record) => record.get('node'));
+        const nodeArray = newArray[0];
+        const totalPeople = results.records.map((record) => record.get('count'));
+        const totalInstitutions = results.records.map((record) => record.get('instcount'));
+        const totalCorporateEntities = results.records.map((record) => record.get('corpcount'));
+        const totalEvents = results.records.map((record) => record.get('eventcount'));
+        if (nodeArray.length === 0) {
+            this.setState({noresults: "noresults"})
+        } else {
+            this.setState({nodeArray});
+            this.setState({totalPeople});
+            this.setState({totalInstitutions});
+            this.setState({totalCorporateEntities});
+            this.setState({totalEvents});
+            this.setState({noresults: "noresults hide"})
+            this.setState({content: "loaded"})
+        }
 
-                //FETCH (AND CLEAN) GENDER COUNTS
-                const session2 = this.driver.session();
-                const query2 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH (AND CLEAN) GENDER COUNTS
+        const result2 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
       CALL {
           WITH n
           MATCH (n)--(p:Person)--(q) 
@@ -1744,24 +1744,19 @@ export function fetchCorporateEntitiesData() {
       }
       WITH p.gender AS gender, count(*) AS count
       RETURN DISTINCT {gender: gender, count: count} AS List`
-                console.log(query2)
-                session2.run(query2).then((results) => {
-                    const genderArray = results.records.map((record) => record.get('List', 'gender'));
-                    let genders = [];
-                    for (let i = 0; i < genderArray.length; i++) {
-                        this.renameProperty(genderArray[i], 'gender', 'key')
-                        this.renameProperty(genderArray[i], 'count', 'value')
-                        {
-                            genders.push(genderArray[i])
-                        }
-                    }
-                    this.setState({genders});
-                    session2.close()
-                })
+        const genderArray = results.records.map((record) => record.get('List', 'gender'));
+        let genders = [];
+        for (let i = 0; i < genderArray.length; i++) {
+            this.renameProperty(genderArray[i], 'gender', 'key')
+            this.renameProperty(genderArray[i], 'count', 'value')
+            {
+                genders.push(genderArray[i])
+            }
+        }
+        this.setState({genders});
 
-                // FETCH GENDER ACTIVITY
-                const session2b = this.driver.session();
-                const query2b = `
+        // FETCH GENDER ACTIVITY
+        const query2b = `
     MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
@@ -1788,20 +1783,16 @@ export function fetchCorporateEntitiesData() {
     } as item2 ORDER BY item2.info
     RETURN item2 as List
       `
-                session2b.run(query2b).then((results) => {
-                    const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
-                    const genderListInitA = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
-                    const genderListFilter1 = genderListInitA.filter((o, i) => !i || o.female >= (genderListInitA[i - 1].female * .25));
-                    const genderListFilter2 = genderListFilter1.filter((o, i) => !i || o.female >= (genderListFilter1[i - 1].female * .25));
-                    const genderListFilter3 = genderListFilter2.filter((o, i) => !i || o.male >= (genderListFilter2[i - 1].male * .25));
-                    const genderList = genderListFilter3.filter((o, i) => !i || o.male >= (genderListFilter3[i - 1].male * .25));
-                    this.setState({genderList})
-                    session2b.close()
-                })
+        const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
+        const genderListInitA = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
+        const genderListFilter1 = genderListInitA.filter((o, i) => !i || o.female >= (genderListInitA[i - 1].female * .25));
+        const genderListFilter2 = genderListFilter1.filter((o, i) => !i || o.female >= (genderListFilter1[i - 1].female * .25));
+        const genderListFilter3 = genderListFilter2.filter((o, i) => !i || o.male >= (genderListFilter2[i - 1].male * .25));
+        const genderList = genderListFilter3.filter((o, i) => !i || o.male >= (genderListFilter3[i - 1].male * .25));
+        this.setState({genderList})
 
-                //FETCH NATIONALITY
-                const session3 = this.driver.session();
-                const query3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH NATIONALITY
+        const query3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
       MATCH (n)--(p:Person) WHERE p.nationality <> "Unknown"
@@ -1810,16 +1801,13 @@ export function fetchCorporateEntitiesData() {
     }
     WITH p.nationality AS nationality, count(*) AS count
     RETURN DISTINCT {info: nationality, count: count} AS List ORDER BY List.count`
-                session3.run(query3).then((results) => {
-                    const nationalityList = results.records.map((record) => record.get('List', 'info'));
-                    const nationality = nationalityList.filter(d => d.count >= 1)
-                    this.setState({nationality})
-                    session3.close()
-                })
 
-                //FETCH NATIONALITY (NULL)
-                const session4 = this.driver.session();
-                const query4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        const nationalityList = results.records.map((record) => record.get('List', 'info'));
+        const nationality = nationalityList.filter(d => d.count >= 1)
+        this.setState({nationality})
+
+        //FETCH NATIONALITY (NULL)
+        const query4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
         WITH n
         MATCH (n)--(p:Person) WHERE p.nationality IS NULL OR p.nationality = "Unknown"
@@ -1827,15 +1815,11 @@ export function fetchCorporateEntitiesData() {
         RETURN DISTINCT p
     }
     RETURN count(p) as Count`
-                session4.run(query4).then((results) => {
-                    const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
-                    this.setState({nationalityNull})
-                    session4.close()
-                })
+        const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
+        this.setState({nationalityNull})
 
-                // FETCH COUNTY ACTIVITY
-                const session5 = this.driver.session();
-                const query5 = `MATCH (e)--(p:Person)--(i:Institution)--(o) 
+        // FETCH COUNTY ACTIVITY
+        const query5 = `MATCH (e)--(p:Person)--(i:Institution)--(o) 
     WHERE id(e)=` + nodeIdFilter + ` AND (o:Village OR o:Township OR o:County OR o:Prefecture OR o:Province)
     WITH count(distinct p) as count, o
     CALL apoc.path.subgraphAll(o, {
@@ -1857,16 +1841,12 @@ export function fetchCorporateEntitiesData() {
     WITH [prov in COLLECT(Lister) WHERE prov.County IS NOT NULL] as filter1 UNWIND filter1 as List
     RETURN List LIMIT 10`
 
-                session5.run(query5).then((results) => {
-                    const counties1 = results.records.map((record) => record.get('List', 'Activity'));
-                    const counties = counties1.filter(d => (d.County.en !== null))
-                    this.setState({counties})
-                    session5.close()
-                })
+        const counties1 = results.records.map((record) => record.get('List', 'Activity'));
+        const counties = counties1.filter(d => (d.County.en !== null))
+        this.setState({counties})
 
-                // FETCH PREFECTURE ACTIVITY
-                const session6 = this.driver.session();
-                const query6 = `MATCH (e)--(p:Person)--(i:Institution)--(o) 
+        // FETCH PREFECTURE ACTIVITY
+        const query6 = `MATCH (e)--(p:Person)--(i:Institution)--(o) 
     WHERE id(e)=` + nodeIdFilter + ` AND (o:Village OR o:Township OR o:County OR o:Prefecture OR o:Province)
     WITH count(distinct p) as count, o
     CALL apoc.path.subgraphAll(o, {
@@ -1886,16 +1866,12 @@ export function fetchCorporateEntitiesData() {
     WITH [prov in COLLECT(Lister) WHERE prov.Prefecture IS NOT NULL] as filter1 UNWIND filter1 as List
     RETURN List LIMIT 10`
 
-                session6.run(query6).then((results) => {
-                    const prefectures1 = results.records.map((record) => record.get('List', 'Activity'));
-                    const prefectures = prefectures1.filter(d => (d.Prefecture.en !== null))
-                    this.setState({prefectures})
-                    session6.close()
-                })
+        const prefectures1 = results.records.map((record) => record.get('List', 'Activity'));
+        const prefectures = prefectures1.filter(d => (d.Prefecture.en !== null))
+        this.setState({prefectures})
 
-                // FETCH PROVINCE ACTIVITY
-                const session7 = this.driver.session();
-                const query7 = `MATCH (e)--(p:Person)--(i:Institution)--(o) 
+        // FETCH PROVINCE ACTIVITY
+        const query7 = `MATCH (e)--(p:Person)--(i:Institution)--(o) 
     WHERE id(e)=` + nodeIdFilter + ` AND (o:Village OR o:Township OR o:County OR o:Prefecture OR o:Province)
     WITH count(distinct p) as count, o
     CALL apoc.path.subgraphAll(o, {
@@ -1909,16 +1885,12 @@ export function fetchCorporateEntitiesData() {
     CASE labels(nodes[0])[0]  WHEN NULL THEN o.name_zh ELSE nodes[0].name_zh END as provzh
     RETURN DISTINCT {Province: {en: prov, zh: provzh, tw: provzh}, Activity: sum(count)} AS List ORDER BY List.Activity DESC LIMIT 10`
 
-                session7.run(query7).then((results) => {
-                    const provinces1 = results.records.map((record) => record.get('List', 'Activity'));
-                    const provinces = provinces1.filter(d => (d.Province.en !== null))
-                    this.setState({provinces})
-                    session7.close()
-                })
+        const provinces1 = results.records.map((record) => record.get('List', 'Activity'));
+        const provinces = provinces1.filter(d => (d.Province.en !== null))
+        this.setState({provinces})
 
-                //FETCH INSTITUTIONS BY YEAR
-                const session8 = this.driver.session();
-                const query8 = `
+        //FETCH INSTITUTIONS BY YEAR
+        const query8 = `
     MATCH (p) WHERE id(p)=` + nodeIdFilter + `
     CALL {
       WITH p
@@ -1931,20 +1903,16 @@ export function fetchCorporateEntitiesData() {
     WITH name, apoc.coll.flatten(collect(years)) as year_list
     UNWIND year_list as all_years
     RETURN {info: toInteger(all_years), count: toInteger(count(distinct name))} as List  ORDER BY List.info`
-                session8.run(query8).then((results) => {
-                    const instList = results.records.map((record) => record.get('List', 'info'));
-                    const filteredInstList = instList.filter(d => (d.count > 0 && d.info >= 1550 && d.info <= 1950))
-                    const instDateList1 = filteredInstList.filter((o, i) => !i || o.count > (filteredInstList[i - 1].count * .25));
-                    const instDateList2 = instDateList1.filter((o, i) => !i || o.count > (instDateList1[i - 1].count * .25));
-                    const instDateList3 = instDateList2.filter((o, i) => !i || o.count > (instDateList2[i - 1].count * .25));
-                    const instDateList = instDateList3.filter((o, i) => !i || o.count > (instDateList3[i - 1].count * .25));
-                    this.setState({instDateList})
-                    session8.close()
-                })
+        const instList = results.records.map((record) => record.get('List', 'info'));
+        const filteredInstList = instList.filter(d => (d.count > 0 && d.info >= 1550 && d.info <= 1950))
+        const instDateList1 = filteredInstList.filter((o, i) => !i || o.count > (filteredInstList[i - 1].count * .25));
+        const instDateList2 = instDateList1.filter((o, i) => !i || o.count > (instDateList1[i - 1].count * .25));
+        const instDateList3 = instDateList2.filter((o, i) => !i || o.count > (instDateList2[i - 1].count * .25));
+        const instDateList = instDateList3.filter((o, i) => !i || o.count > (instDateList3[i - 1].count * .25));
+        this.setState({instDateList})
 
-                //FETCH INSTITUTIONS TYPES
-                const session9 = this.driver.session();
-                const query9 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH INSTITUTIONS TYPES
+        const query9 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
       CALL {
           WITH n
           MATCH (n)--(:Person)--(i:Institution) 
@@ -1955,24 +1923,16 @@ export function fetchCorporateEntitiesData() {
       WHEN NULL THEN "N/A" 
       ELSE i.institution_category END AS type, count(*) AS count
     RETURN DISTINCT {type: type, count: count} AS List`
-                session9.run(query9).then((results) => {
-                    const instArray = results.records.map((record) => record.get('List', 'type'));
-                    let instTypeList = [];
-                    for (let i = 0; i < instArray.length; i++) {
-                        this.renameProperty(instArray[i], 'type', 'key')
-                        this.renameProperty(instArray[i], 'count', 'value')
-                        {
-                            instTypeList.push(instArray[i])
-                        }
-                    }
-                    this.setState({instTypeList});
-                    session9.close()
-                })
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
-
+        const instArray = results.records.map((record) => record.get('List', 'type'));
+        let instTypeList = [];
+        for (let i = 0; i < instArray.length; i++) {
+            this.renameProperty(instArray[i], 'type', 'key')
+            this.renameProperty(instArray[i], 'count', 'value')
+            {
+                instTypeList.push(instArray[i])
+            }
+        }
+        this.setState({instTypeList});
     }
 }
 
@@ -2006,17 +1966,14 @@ export function fetchGeographyData() {
 
         //SET CENTRAL NODE
         let nodeIdFilter;
-        fetchNeo4jId(this.state.node_id, this.driver)
-            .then((internalId) => {
-                if (this.state.node_id !== "") {
-                    nodeIdFilter = '' + parseFloat(internalId) + ' '
-                } else {
-                    nodeIdFilter = ""
-                }
+        if (this.state.node_id !== "") {
+            nodeIdFilter = this.state.node_id
+        } else {
+            nodeIdFilter = ""
+        }
 
-                //FETCH COUNTS
-                const session = this.driver.session();
-                const query = `
+        //FETCH COUNTS
+        const query = `
       MATCH (n) WHERE id(n)=` + nodeIdFilter + `
       WITH n
       CALL {
@@ -2040,32 +1997,26 @@ export function fetchGeographyData() {
         RETURN count(DISTINCT p) as corpcount
       }
       RETURN n as node, person as count, instcount, eventcount, corpcount`
-                session
-                    .run(query)
-                    .then((results) => {
-                        const newArray = results.records.map((record) => record.get('node'));
-                        const nodeArray = newArray[0];
-                        const totalPeople = results.records.map((record) => record.get('count'));
-                        const totalInstitutions = results.records.map((record) => record.get('instcount'));
-                        const totalCorporateEntities = results.records.map((record) => record.get('corpcount'));
-                        const totalEvents = results.records.map((record) => record.get('eventcount'));
-                        if (nodeArray.length === 0) {
-                            this.setState({noresults: "noresults"})
-                        } else {
-                            this.setState({nodeArray});
-                            this.setState({totalPeople});
-                            this.setState({totalInstitutions});
-                            this.setState({totalCorporateEntities});
-                            this.setState({totalEvents});
-                            this.setState({noresults: "noresults hide"})
-                            this.setState({content: "loaded"})
-                        }
-                        session.close()
-                    });
+        const newArray = results.records.map((record) => record.get('node'));
+        const nodeArray = newArray[0];
+        const totalPeople = results.records.map((record) => record.get('count'));
+        const totalInstitutions = results.records.map((record) => record.get('instcount'));
+        const totalCorporateEntities = results.records.map((record) => record.get('corpcount'));
+        const totalEvents = results.records.map((record) => record.get('eventcount'));
+        if (nodeArray.length === 0) {
+            this.setState({noresults: "noresults"})
+        } else {
+            this.setState({nodeArray});
+            this.setState({totalPeople});
+            this.setState({totalInstitutions});
+            this.setState({totalCorporateEntities});
+            this.setState({totalEvents});
+            this.setState({noresults: "noresults hide"})
+            this.setState({content: "loaded"})
+        }
 
-                //FETCH (AND CLEAN) GENDER COUNTS
-                const session2 = this.driver.session();
-                const query2 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH (AND CLEAN) GENDER COUNTS
+        const query2 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
       MATCH (n)--(t)--(p:Person) WHERE t:Event or t:Institution
@@ -2073,23 +2024,19 @@ export function fetchGeographyData() {
     }
     WITH p.gender AS gender, count(*) AS count
     RETURN DISTINCT {gender: gender, count: count} AS List`
-                session2.run(query2).then((results) => {
-                    const genderArray = results.records.map((record) => record.get('List', 'gender'));
-                    let genders = [];
-                    for (let i = 0; i < genderArray.length; i++) {
-                        this.renameProperty(genderArray[i], 'gender', 'key')
-                        this.renameProperty(genderArray[i], 'count', 'value')
-                        {
-                            genders.push(genderArray[i])
-                        }
-                    }
-                    this.setState({genders})
-                    session2.close()
-                })
+        const genderArray = results.records.map((record) => record.get('List', 'gender'));
+        let genders = [];
+        for (let i = 0; i < genderArray.length; i++) {
+            this.renameProperty(genderArray[i], 'gender', 'key')
+            this.renameProperty(genderArray[i], 'count', 'value')
+            {
+                genders.push(genderArray[i])
+            }
+        }
+        this.setState({genders})
 
-                // FETCH GENDER ACTIVITY
-                const session2b = this.driver.session();
-                const query2b = `
+        // FETCH GENDER ACTIVITY
+        const query2b = `
     MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
@@ -2115,20 +2062,16 @@ export function fetchGeographyData() {
     } as item2 ORDER BY item2.info
     RETURN item2 as List
       `
-                session2b.run(query2b).then((results) => {
-                    const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
-                    const genderListInitA = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
-                    const genderListFilter1 = genderListInitA.filter((o, i) => !i || o.female >= (genderListInitA[i - 1].female * .25));
-                    const genderListFilter2 = genderListFilter1.filter((o, i) => !i || o.female >= (genderListFilter1[i - 1].female * .25));
-                    const genderListFilter3 = genderListFilter2.filter((o, i) => !i || o.male >= (genderListFilter2[i - 1].male * .25));
-                    const genderList = genderListFilter3.filter((o, i) => !i || o.male >= (genderListFilter3[i - 1].male * .25));
-                    this.setState({genderList})
-                    session2b.close()
-                })
+        const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
+        const genderListInitA = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
+        const genderListFilter1 = genderListInitA.filter((o, i) => !i || o.female >= (genderListInitA[i - 1].female * .25));
+        const genderListFilter2 = genderListFilter1.filter((o, i) => !i || o.female >= (genderListFilter1[i - 1].female * .25));
+        const genderListFilter3 = genderListFilter2.filter((o, i) => !i || o.male >= (genderListFilter2[i - 1].male * .25));
+        const genderList = genderListFilter3.filter((o, i) => !i || o.male >= (genderListFilter3[i - 1].male * .25));
+        this.setState({genderList})
 
-                //FETCH NATIONALITY
-                const session3 = this.driver.session();
-                const query3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH NATIONALITY
+        const query3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
       WITH n
       MATCH (n)--(t)--(p:Person) WHERE t:Event or t:Institution AND p.nationality <> "Unknown"
@@ -2136,31 +2079,23 @@ export function fetchGeographyData() {
     }
     WITH p.nationality AS nationality, count(*) AS count
     RETURN DISTINCT {info: nationality, count: count} AS List ORDER BY List.count`
-                session3.run(query3).then((results) => {
-                    const nationalityList = results.records.map((record) => record.get('List', 'info'));
-                    const nationality = nationalityList.filter(d => d.count >= 1)
-                    this.setState({nationality})
-                    session3.close()
-                })
+        const nationalityList = results.records.map((record) => record.get('List', 'info'));
+        const nationality = nationalityList.filter(d => d.count >= 1)
+        this.setState({nationality})
 
-                //FETCH NATIONALITY (NULL)
-                const session4 = this.driver.session();
-                const query4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH NATIONALITY (NULL)
+        const query4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
     CALL {
         WITH n
         MATCH (n)--(t)--(p:Person) WHERE t:Event or t:Institution AND p.nationality IS NULL OR p.nationality = "Unknown"
         RETURN DISTINCT p
     }
     RETURN count(p) as Count`
-                session4.run(query4).then((results) => {
-                    const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
-                    this.setState({nationalityNull})
-                    session4.close()
-                })
+        const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
+        this.setState({nationalityNull})
 
-                // FETCH GEO-INSTITUTITONAL ACTIVITY
-                const session7 = this.driver.session();
-                const query7 = `MATCH (g) WHERE id(g)=` + nodeIdFilter + `
+        // FETCH GEO-INSTITUTITONAL ACTIVITY
+        const query7 = `MATCH (g) WHERE id(g)=` + nodeIdFilter + `
     CALL {
         WITH g
         MATCH (g)--(i:Institution)-[t]-(p:Person) 
@@ -2174,15 +2109,11 @@ export function fetchGeographyData() {
         OR (t.start_year >= min AND r.start_year >= min AND t.end_year IS NULL AND r.end_year IS NULL)
         RETURN DISTINCT {key : c.name_western, value: count(DISTINCT i)} AS List
         ORDER BY List.count DESC LIMIT 25`
-                session7.run(query7).then((results) => {
-                    const provinces = results.records.map((record) => record.get('List', 'count'));
-                    this.setState({provinces})
-                    session7.close()
-                })
+        const provinces = results.records.map((record) => record.get('List', 'count'));
+        this.setState({provinces})
 
-                // FETCH GEO-PERSON ACTIVITY
-                const session6 = this.driver.session();
-                const query6 = `MATCH (g) WHERE id(g)=` + nodeIdFilter + `
+        // FETCH GEO-PERSON ACTIVITY
+        const query6 = `MATCH (g) WHERE id(g)=` + nodeIdFilter + `
     CALL {
         WITH g
         MATCH (g)--(i:Institution)-[t]-(p:Person) 
@@ -2196,15 +2127,11 @@ export function fetchGeographyData() {
         OR (t.start_year >= min AND r.start_year >= min AND t.end_year IS NULL AND r.end_year IS NULL)
         RETURN DISTINCT {key : c.name_western, value: count(DISTINCT p)} AS List
         ORDER BY List.count DESC LIMIT 25`
-                session6.run(query6).then((results) => {
-                    const counties = results.records.map((record) => record.get('List', 'count'));
-                    this.setState({counties})
-                    session6.close()
-                })
+        const counties = results.records.map((record) => record.get('List', 'count'));
+        this.setState({counties})
 
-                //FETCH INSTITUTIONS BY YEAR
-                const session8 = this.driver.session();
-                const query8 = `
+        //FETCH INSTITUTIONS BY YEAR
+        const query8 = `
     MATCH (p) WHERE id(p)=` + nodeIdFilter + `
     CALL {
       WITH p
@@ -2215,20 +2142,15 @@ export function fetchGeographyData() {
     WITH name, apoc.coll.flatten(collect(years)) as year_list
     UNWIND year_list as all_years
     RETURN {info: toInteger(all_years), count: toInteger(count(name))} as List  ORDER BY List.info`
-                session8.run(query8).then((results) => {
-                    const instList = results.records.map((record) => record.get('List', 'info'));
-                    const filteredInstList = instList.filter(d => (d.count > 0 && d.info >= 1550 && d.info <= 1950))
-                    const instDateList1 = filteredInstList.filter((o, i) => !i || o.count > (filteredInstList[i - 1].count * .25));
-                    const instDateList2 = instDateList1.filter((o, i) => !i || o.count > (instDateList1[i - 1].count * .25));
-                    const instDateList3 = instDateList2.filter((o, i) => !i || o.count > (instDateList2[i - 1].count * .25));
-                    const instDateList = instDateList3.filter((o, i) => !i || o.count > (instDateList3[i - 1].count * .25));
-                    this.setState({instDateList})
-                    session8.close()
-                })
+        const instList = results.records.map((record) => record.get('List', 'info'));
+        const filteredInstList = instList.filter(d => (d.count > 0 && d.info >= 1550 && d.info <= 1950))
+        const instDateList1 = filteredInstList.filter((o, i) => !i || o.count > (filteredInstList[i - 1].count * .25));
+        const instDateList2 = instDateList1.filter((o, i) => !i || o.count > (instDateList1[i - 1].count * .25));
+        const instDateList3 = instDateList2.filter((o, i) => !i || o.count > (instDateList2[i - 1].count * .25));
+        const instDateList = instDateList3.filter((o, i) => !i || o.count > (instDateList3[i - 1].count * .25));
 
-                //FETCH INSTITUTIONS TYPES
-                const session9 = this.driver.session();
-                const query9 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
+        //FETCH INSTITUTIONS TYPES
+        const query9 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
         CALL {
           WITH n
           MATCH (n)--(i:Institution)
@@ -2238,22 +2160,14 @@ export function fetchGeographyData() {
         WHEN NULL THEN "N/A" 
         ELSE i.institution_category END AS type, count(*) AS count
       RETURN DISTINCT {type: type, count: count} AS List`
-                session9.run(query9).then((results) => {
-                    const instArray = results.records.map((record) => record.get('List', 'type'));
-                    let instTypeList = [];
-                    for (let i = 0; i < instArray.length; i++) {
-                        this.renameProperty(instArray[i], 'type', 'key')
-                        this.renameProperty(instArray[i], 'count', 'value')
-                        {
-                            instTypeList.push(instArray[i])
-                        }
-                    }
-                    this.setState({instTypeList});
-                    session9.close()
-                })
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
+        const instArray = results.records.map((record) => record.get('List', 'type'));
+        let instTypeList = [];
+        for (let i = 0; i < instArray.length; i++) {
+            this.renameProperty(instArray[i], 'type', 'key')
+            this.renameProperty(instArray[i], 'count', 'value')
+            {
+                instTypeList.push(instArray[i])
+            }
+        }
     }
 }
