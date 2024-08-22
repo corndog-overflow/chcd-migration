@@ -1510,86 +1510,241 @@ export function fetchInstitutionsData() {
         this.setState({genders});
 
         // FETCH GENDER ACTIVITY
-        const result2b = `
-    MATCH (n) WHERE id(n)=` + nodeIdFilter + `
-    CALL {
-      WITH n
-      MATCH (n)-[t]-(p:Person) WHERE p.gender IS NOT NULL AND t.start_year IS NOT NULL
-      WITH p, t.start_year as min, CASE WHEN t.end_year IS NOT NULL THEN t.end_year ELSE t.start_year END as max
-      RETURN DISTINCT p, p.gender as gender, range(toInteger(min), toInteger(max)) as range
-    }
-    WITH DISTINCT gender, apoc.coll.flatten(COLLECT(range)) as years
-    WITH gender,  apoc.coll.frequencies(years) as freq UNWIND freq as freq_occur
-    WITH apoc.map.fromValues([toLower(gender), freq_occur.count]) as gender_count, freq_occur.item as year
-    UNWIND keys(gender_count) as key 
-    WITH CASE
-      WHEN key = "male" THEN {info: year, male: gender_count[key], female: 0, unknown: 0}
-      WHEN key = "female" THEN {info: year, male: 0, female: gender_count[key], unknown: 0}
-      ELSE {info: year, male: 0, female: 0, unknown: gender_count[key]}
-      END as List
-    WITH List UNWIND List as item
-    WITH {
-      info: item.info,
-      female:apoc.coll.sumLongs(apoc.coll.toSet(apoc.coll.flatten(collect(item.female)))),
-      male:apoc.coll.sumLongs(apoc.coll.toSet(apoc.coll.flatten(collect(item.male)))),
-      unknown:apoc.coll.sumLongs(apoc.coll.toSet(apoc.coll.flatten(collect(item.unknown))))
-    } as item2 ORDER BY item2.info
-    RETURN item2 as List
-      `
+        const result2b = sql`
+    WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id =` + nodeIdFilter + `
+    UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+),
+data AS (
+    SELECT DISTINCT p.id AS person_id,
+        p.gender,
+        r.start_year,
+        r.end_year
+    FROM People p
+        JOIN Relationship r ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+        JOIN related_institutions ri ON (r.entity_from_id = ri.institution_id)
+        OR (r.entity_to_id = ri.institution_id)
+    WHERE p.gender IS NOT NULL
+        AND r.start_year IS NOT NULL
+        AND r.end_year IS NOT NULL -- Exclude records where end_year is NULL
+),
+ranges AS (
+    SELECT person_id,
+        gender,
+        generate_series(start_year, end_year) AS year
+    FROM data
+),
+yearly_counts AS (
+    SELECT year,
+        gender,
+        COUNT(DISTINCT person_id) AS count
+    FROM ranges
+    GROUP BY year,
+        gender
+),
+gender_year_counts AS (
+    SELECT year,
+        SUM(
+            CASE
+                WHEN gender = 'Male' THEN count
+                ELSE 0
+            END
+        ) AS male,
+        SUM(
+            CASE
+                WHEN gender = 'Female' THEN count
+                ELSE 0
+            END
+        ) AS female,
+        SUM(
+            CASE
+                WHEN gender IS NULL
+                OR gender NOT IN ('Male', 'Female') THEN count
+                ELSE 0
+            END
+        ) AS unknown
+    FROM yearly_counts
+    GROUP BY year
+)
+SELECT year AS info,
+    COALESCE(female, 0) AS female,
+    COALESCE(male, 0) AS male,
+    COALESCE(unknown, 0) AS unknown
+FROM gender_year_counts
+ORDER BY year;`
         const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
         const genderList = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
         this.setState({genderList})
 
         //FETCH NATIONALITY
-        const result3 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
-    CALL {
-      WITH n
-      MATCH (n)--(p:Person) WHERE p.nationality <> "Unknown"
-      RETURN DISTINCT p
-    }
-    WITH p.nationality AS nationality, count(*) AS count
-    RETURN DISTINCT {info: nationality, count: count} AS List ORDER BY List.count`
+        const result3 = sql`WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id =` + nodeIdFilter + `
+    UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+),
+relevant_people AS (
+    -- Find all distinct people related to any of the related institutions
+    SELECT DISTINCT p.id,
+        p.nationality
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_from_id
+        OR ri.institution_id = r.entity_to_id
+        JOIN People p ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+    WHERE p.nationality <> 'Unknown'
+        AND p.id IS NOT NULL
+)
+SELECT rp.nationality,
+    COUNT(*) AS count
+FROM relevant_people rp
+GROUP BY rp.nationality
+ORDER BY count DESC;`
         const nationalityList = results.records.map((record) => record.get('List', 'info'));
         const nationality = nationalityList.filter(d => d.count >= 1)
         this.setState({nationality})
 
         //FETCH NATIONALITY (NULL)
-        const result4 = `MATCH (n) WHERE id(n)=` + nodeIdFilter + `
-    CALL {
-        WITH n
-        MATCH (n)--(p:Person) WHERE p.nationality IS NULL OR p.nationality = "Unknown"
-        RETURN DISTINCT p
-    }
-    RETURN count(p) as Count`
+        const result4 = sql`WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id =` + nodeIdFilter + `
+    UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+),
+relevant_people AS (
+    -- Find all distinct people related to any of the related institutions
+    SELECT DISTINCT p.id,
+        p.nationality
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_from_id
+        OR ri.institution_id = r.entity_to_id
+        JOIN People p ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+    WHERE (
+            p.nationality = 'Unknown'
+            OR p.nationality IS NULL
+        )
+        AND p.id IS NOT NULL
+)
+SELECT rp.nationality,
+    COUNT(*) AS count
+FROM relevant_people rp
+GROUP BY rp.nationality
+ORDER BY count DESC;`
         const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
         this.setState({nationalityNull})
 
         //FETCH PEOPLE PRESENT BY YEAR
-        const result8 = `
-    MATCH (p) WHERE id(p)=` + nodeIdFilter + `
-    CALL {
-      WITH p
-      MATCH (p)-[t]-(q:Person) WHERE t.start_year IS NOT NULL
-      WITH DISTINCT q, t.start_year as min, CASE WHEN t.end_year IS NOT NULL THEN t.end_year ELSE t.start_year END as max
-      RETURN q.id as name, range(toInteger(min), toInteger(max)) as years
-      }
-    WITH name, apoc.coll.flatten(collect(years)) as year_list
-    UNWIND year_list as all_years
-    RETURN {info: toInteger(all_years), count: toInteger(count(distinct name))} as List  ORDER BY List.info`
+        const result8 = sql`
+    WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id =` + nodeIdFilter + `
+    UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+),
+data AS (
+    -- Find people related to any of the related institutions
+    SELECT DISTINCT p.id AS person_id,
+        r.start_year,
+        r.end_year
+    FROM People p
+        JOIN Relationship r ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+        JOIN related_institutions ri ON (r.entity_from_id = ri.institution_id)
+        OR (r.entity_to_id = ri.institution_id)
+    WHERE p.id IS NOT NULL
+        AND r.start_year IS NOT NULL
+        AND r.end_year IS NOT NULL -- Exclude records where end_year is NULL
+),
+ranges AS (
+    -- Generate years for each person based on the start and end years
+    SELECT person_id,
+        generate_series(start_year, end_year) AS year
+    FROM data
+),
+yearly_counts AS (
+    -- Count distinct people per year
+    SELECT year,
+        COUNT(DISTINCT person_id) AS total_count
+    FROM ranges
+    GROUP BY year
+)
+SELECT year AS info,
+    total_count
+FROM yearly_counts
+ORDER BY year;`
         const instList = results.records.map((record) => record.get('List', 'info'));
         const instDateList = instList.filter(d => (d.count >= 1 && d.info >= 1550 && d.info <= 1950))
         this.setState({instDateList})
 
         //FETCH CHRISTIAN_TRADITION
-        const result9 = `
-    MATCH (p) WHERE id(p)=` + nodeIdFilter + `
-    CALL {
-      WITH p
-      MATCH (p)--(n:Person)--(t:CorporateEntity) WHERE EXISTS(t.christian_tradition)
-      WITH DISTINCT t.christian_tradition as name, count(DISTINCT n) AS count
-      RETURN name, count AS Count
-    }
-    RETURN DISTINCT {christian_tradition: name, count: Count} AS List
+        const result9 = sql`
+    WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id =` + nodeIdFilter + `
+    UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions
+),
+relevant_people AS (
+    -- Find all distinct people related to any of the related institutions
+    SELECT DISTINCT p.id,
+        p.christian_tradition
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_from_id
+        OR ri.institution_id = r.entity_to_id
+        JOIN People p ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+    WHERE p.christian_tradition IS NOT NULL
+        AND p.id IS NOT NULL
+)
+SELECT rp.christian_tradition,
+    COUNT(*) AS count
+FROM relevant_people rp
+GROUP BY rp.christian_tradition
+ORDER BY count DESC;
     `
         const christianTraditionList = results.records.map((record) => record.get('List', 'christian_tradition'));
         let christianTradition = [];
@@ -1603,18 +1758,38 @@ export function fetchInstitutionsData() {
         this.setState({christianTradition})
 
         //FETCH RELIGIOUS_FAMILY
-        const result10 = `
-    MATCH (p) WHERE id(p)=` + nodeIdFilter + `
-    CALL {
-      WITH p
-      MATCH (p)--(n:Person)--(t:CorporateEntity)
-      WITH DISTINCT CASE t.religious_family 
-      WHEN NULL THEN "Unknown"
-      ELSE t.religious_family END AS  name, count(DISTINCT n) AS count
-      RETURN name, count AS Count
-    }
-    RETURN DISTINCT {religious_family: name, count: Count} AS List
-    `
+        const result10 = sql`
+    WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id =` + nodeIdFilter + `
+    UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions
+),
+relevant_people AS (
+    -- Find all distinct people related to any of the related institutions
+    SELECT DISTINCT p.id,
+        p.religious_family
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_from_id
+        OR ri.institution_id = r.entity_to_id
+        JOIN People p ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+    WHERE p.religious_family IS NOT NULL
+        AND p.id IS NOT NULL
+)
+SELECT rp.religious_family,
+    COUNT(*) AS count
+FROM relevant_people rp
+GROUP BY rp.religious_family
+ORDER BY count DESC;`
         const religiousFamilyList = results.records.map((record) => record.get('List', 'religious_family'));
         const religiousFamilyClean = religiousFamilyList.filter(d => d.count >= 0)
         let religiousFamily = [];
@@ -1628,29 +1803,80 @@ export function fetchInstitutionsData() {
         this.setState({religiousFamily})
 
         //FETCH RELIGIOUS_FAMILY NULL
-        const result11 = sql`
-            SELECT COUNT(DISTINCT n.id)
-            FROM Nodes p
-                     JOIN Relationship r ON p.id = r.entity_from_id OR p.id = r.entity_to_id
-                     JOIN People n ON r.entity_from_id = n.id OR r.entity_to_id = n.id
-                     JOIN people_partof_corporateentities pn ON n.id = pn.entity_from_id OR n.id = pn.entity_to_id
-                     JOIN CorporateEntities t ON n.id = t.id
-            WHERE p.id = ${nodeIdFilter}
-              AND t.religious_family IS NULL;`
+        const result11 = sql`WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id = ${nodeIdFilter}
+              UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+),
+relevant_people AS (
+    -- Find all distinct people related to any of the related institutions
+    SELECT DISTINCT p.id,
+        p.religious_family
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_from_id
+        OR ri.institution_id = r.entity_to_id
+        JOIN People p ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+    WHERE (
+            p.religious_family = 'Unknown'
+            OR p.religious_family IS NULL
+        )
+        AND p.id IS NOT NULL
+)
+SELECT rp.religious_family,
+    COUNT(*) AS count
+FROM relevant_people rp
+GROUP BY rp.religious_family
+ORDER BY count DESC;`
         const religiousFamilyNullValues = result11[0]["count"];
         this.setState({religiousFamilyNullValues})
 
 
         //FETCH CHRISTIAN TRADITION NULL
         const result12 = sql`
-            SELECT COUNT(DISTINCT n.id)
-            FROM Nodes p
-                     JOIN Relationship r ON p.id = r.entity_from_id OR p.id = r.entity_to_id
-                     JOIN People n ON r.entity_from_id = n.id OR r.entity_to_id = n.id
-                     JOIN people_partof_corporateentities pn ON n.id = pn.entity_from_id OR n.id = pn.entity_to_id
-                     JOIN CorporateEntities t ON n.id = t.id
-            WHERE p.id = ${nodeIdFilter}
-              AND t.christian_tradition IS NULL;`
+            WITH RECURSIVE related_institutions AS (
+    -- Base case: Start with the base institution
+    SELECT i.id AS institution_id
+    FROM institutions i
+    WHERE i.id = ${nodeIdFilter}
+              UNION ALL
+    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+    SELECT r.entity_from_id AS institution_id
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_to_id
+        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+    WHERE r.entity_from_id IS NOT NULL
+        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+),
+relevant_people AS (
+    -- Find all distinct people related to any of the related institutions
+    SELECT DISTINCT p.id,
+        p.christian_tradition
+    FROM related_institutions ri
+        JOIN Relationship r ON ri.institution_id = r.entity_from_id
+        OR ri.institution_id = r.entity_to_id
+        JOIN People p ON (p.id = r.entity_from_id)
+        OR (p.id = r.entity_to_id)
+    WHERE (
+            p.christian_tradition = 'Unknown'
+            OR p.christian_tradition IS NULL
+        )
+        AND p.id IS NOT NULL
+)
+SELECT rp.christian_tradition,
+    COUNT(*) AS count
+FROM relevant_people rp
+GROUP BY rp.christian_tradition
+ORDER BY count DESC;`
 
         const christianTraditionNullValues = result12[0]["count"];
         this.setState({christianTraditionNullValues})
