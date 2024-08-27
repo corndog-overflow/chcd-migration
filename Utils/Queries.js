@@ -19,38 +19,38 @@ export function fetchSearch() {
     this.setState({content: "loading"})
     let searchProp = this.state.search;
 
-    const results = `SELECT DISTINCT *
-                     FROM (SELECT 'Person' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
-                           FROM People p
-                           WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
-                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                           UNION ALL
-                           SELECT 'Institution' AS label, i.id, pgroonga_score(tableoid, ctid) AS score
-                           FROM Institutions i
-                           WHERE ARRAY [i.full_text_name_content, i.full_text_search_content] &@~
-                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                           UNION ALL
-                           SELECT 'CorporateEntity' AS label, c.id, pgroonga_score(tableoid, ctid) AS score
-                           FROM CorporateEntities c
-                           WHERE ARRAY [c.full_text_name_content, c.full_text_search_content] &@~
-                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                           UNION ALL
-                           SELECT 'Event' AS label, e.id, pgroonga_score(tableoid, ctid) AS score
-                           FROM Events e
-                           WHERE ARRAY [e.full_text_name_content, e.full_text_search_content] &@~
-                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
-                           UNION ALL
-                           SELECT 'Publication' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
-                           FROM Publications p
-                           WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
-                                 ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
-                                  'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers) as unioned
-                     ORDER BY score DESC
-                     LIMIT 1000;`
+    const results = sql`SELECT DISTINCT *
+                        FROM (SELECT 'Person' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
+                              FROM People p
+                              WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
+                                    ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                              UNION ALL
+                              SELECT 'Institution' AS label, i.id, pgroonga_score(tableoid, ctid) AS score
+                              FROM Institutions i
+                              WHERE ARRAY [i.full_text_name_content, i.full_text_search_content] &@~
+                                    ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                              UNION ALL
+                              SELECT 'CorporateEntity' AS label, c.id, pgroonga_score(tableoid, ctid) AS score
+                              FROM CorporateEntities c
+                              WHERE ARRAY [c.full_text_name_content, c.full_text_search_content] &@~
+                                    ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                              UNION ALL
+                              SELECT 'Event' AS label, e.id, pgroonga_score(tableoid, ctid) AS score
+                              FROM Events e
+                              WHERE ARRAY [e.full_text_name_content, e.full_text_search_content] &@~
+                                    ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers
+                              UNION ALL
+                              SELECT 'Publication' AS label, p.id, pgroonga_score(tableoid, ctid) AS score
+                              FROM Publications p
+                              WHERE ARRAY [p.full_text_name_content, p.full_text_search_content] &@~
+                                    ('${searchProp}', ARRAY [5, 1], ARRAY [NULL, 'scorer_tf_at_most($index, 0.5)'],
+                                     'pgroonga_memos_index')::pgroonga_full_text_search_condition_with_scorers) as unioned
+                        ORDER BY score DESC
+                        LIMIT 1000;`
 
     this.setState({
         nodeArray: [],
@@ -163,161 +163,183 @@ export function fetchResults() {
         this.setState({append: this.state.append + 1})
         this.setState({content: "loading"})
         this.setState({printArray: [],})
-        const session = this.driver.session();
 
+        let internalId = this.state.sent_id
         //CONSTRUCT FILTERS FROM USER INPUT
-        fetchNeo4jId(this.state.sent_id, this.driver)
-            .then((internalId) => {
-                let personNameFilter;
-                if (this.state.family_name_western === "" && this.state.given_name_western === "") {
-                    personNameFilter = ""
-                } else if (this.state.family_name_western !== "" && this.state.given_name_western === "") {
-                    personNameFilter = '(toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
-                } else if (this.state.family_name_western === "" && this.state.given_name_western !== "") {
-                    personNameFilter = '(toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
-                } else if (this.state.family_name_western !== "" && this.state.given_name_western !== "") {
-                    personNameFilter = '(toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*") AND (toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
-                }
+        let personNameFilter;
+        if (this.state.family_name_western === "" && this.state.given_name_western === "") {
+            personNameFilter = sql``
+        } else if (this.state.family_name_western !== "" && this.state.given_name_western === "") {
+            personNameFilter = '(toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
+        } else if (this.state.family_name_western === "" && this.state.given_name_western !== "") {
+            personNameFilter = '(toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
+        } else if (this.state.family_name_western !== "" && this.state.given_name_western !== "") {
+            personNameFilter = '(toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.family_name_western)=~ "(?i)' + this.state.family_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*") AND (toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(n.given_name_western)=~ "(?i)' + this.state.given_name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
+        }
 
-                let personNameFilter2;
-                if (this.state.sent_id !== "init" && this.state.kind === "People") {
-                    personNameFilter2 = " AND " + personNameFilter
-                } else if (this.state.start_year !== "" | this.state.end_year !== "" && personNameFilter !== "") {
-                    personNameFilter2 = " AND " + personNameFilter
-                } else if (personNameFilter === "") {
-                    personNameFilter2 = ""
-                } else {
-                    personNameFilter2 = " WHERE " + personNameFilter
-                }
+        let personNameFilter2;
+        if (this.state.sent_id !== "init" && this.state.kind === "People") {
+            personNameFilter2 = sql`AND
+            ${personNameFilter}`
+        } else if (this.state.start_year !== "" | this.state.end_year !== "" && personNameFilter !== "") {
+            personNameFilter2 = sql`AND
+            ${personNameFilter}`
+        } else if (personNameFilter === "") {
+            personNameFilter2 = sql``
+        } else {
+            personNameFilter2 = sql`WHERE
+            ${personNameFilter}`
+        }
 
-                let nameFilter2;
-                if (this.state.name_western !== "") {
-                    nameFilter2 = 'AND (toLower(r.name_western)= "(?i)' + this.state.name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(r.name_western)=~ "(?i)' + this.state.name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
-                } else {
-                    nameFilter2 = ""
-                }
+        let nameFilter2;
+        if (this.state.name_western !== "") {
+            nameFilter2 = 'AND (toLower(r.name_western)= "(?i)' + this.state.name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '" OR toLower(r.name_western)=~ "(?i)' + this.state.name_western.replace("(", "\\(").replace(")", "\\)").replace("[", "\\[").replace("]", "\\]").replace(".", "\\.") + '.*")'
+        } else {
+            nameFilter2 = sql``
+        }
 
-                let icatFilter;
-                if (this.state.institution_category === "All") {
-                    icatFilter = ""
-                } else if (this.state.institution_category !== "All" || this.state.institution_category !== "") {
-                    icatFilter = 'institution_category: "' + this.state.institution_category + '"'
-                } else {
-                    icatFilter = ""
-                }
+        let icatFilter;
+        if (this.state.institution_category === "All") {
+            icatFilter = sql``
+        } else if (this.state.institution_category !== "All" || this.state.institution_category !== "") {
+            icatFilter = sql`institution_category =
+            ${this.state.institution_category}`
+        } else {
+            icatFilter = sql``
+        }
 
-                let isubcatFilter;
-                if (this.state.institution_subcategory === "All") {
-                    isubcatFilter = ""
-                } else if (this.state.institution_subcategory !== "All" || this.state.institution_subcategory !== "") {
-                    isubcatFilter = 'institution_subcategory: "' + this.state.institution_subcategory + '"'
-                } else {
-                    isubcatFilter = ""
-                }
+        let isubcatFilter;
+        if (this.state.institution_subcategory === "All") {
+            isubcatFilter = sql``
+        } else if (this.state.institution_subcategory !== "All" || this.state.institution_subcategory !== "") {
+            isubcatFilter = sql`institution_subcategory =
+            ${this.state.institution_subcategory}`
+        } else {
+            isubcatFilter = sql``
+        }
 
-                let genderFilter;
-                if (this.state.gender !== "All") {
-                    genderFilter = 'gender: "' + this.state.gender + '"'
-                } else {
-                    genderFilter = ""
-                }
+        let genderFilter;
+        if (this.state.gender !== "All") {
+            genderFilter = sql`gender =
+            ${this.state.gender}`
+        } else {
+            genderFilter = sql``
+        }
 
-                let nationalityFilter;
-                if (this.state.nationality === "All") {
-                    nationalityFilter = ""
-                } else if (this.state.nationality !== "") {
-                    nationalityFilter = 'nationality: "' + this.state.nationality + '"'
-                } else {
-                    nationalityFilter = ""
-                }
+        let nationalityFilter;
+        if (this.state.nationality === "All") {
+            nationalityFilter = sql``
+        } else if (this.state.nationality !== "") {
+            nationalityFilter = sql`nationality =
+            ${this.state.nationality}`
+        } else {
+            nationalityFilter = sql``
+        }
 
-                let affFilter;
-                if (this.state.affiliation === "All") {
-                    affFilter = ""
-                } else if (this.state.affiliation !== "All" || this.state.affiliation !== "") {
-                    affFilter = 'name_western: "' + this.state.affiliation + '"'
-                } else {
-                    affFilter = ""
-                }
-                let relFamFilter;
-                if (this.state.religious_family !== "All") {
-                    relFamFilter = 'religious_family: "' + this.state.religious_family + '"'
-                } else {
-                    relFamFilter = ""
-                }
+        let affFilter;
+        if (this.state.affiliation === "All") {
+            affFilter = sql``
+        } else if (this.state.affiliation !== "All" || this.state.affiliation !== "") {
+            affFilter = sql`name_western =
+            ${this.state.affiliation}`
+        } else {
+            affFilter = sql``
+        }
+        let relFamFilter
+        if (this.state.religious_family !== "All") {
+            relFamFilter = sql`religious_family =
+            ${this.state.religious_family}`
+        } else {
+            relFamFilter = sql``
+        }
 
-                let locatArray = [];
-                for (let i = 0; i < locations.length; i++) {
-                    if (locations[i].name_zh === this.state.location) {
-                        locatArray = '"' + locations[i].contains.join('", "') + '"'
-                    }
-                }
+        let locatArray = [];
+        for (let i = 0; i < locations.length; i++) {
+            if (locations[i].name_zh === this.state.location) {
+                locatArray = '"' + locations[i].contains.join('", "') + '"'
+            }
+        }
 
-                let locatFilter;
-                if (locatArray.length >= 1) {
-                    locatFilter = ' AND l.id IN [' + locatArray + ']'
-                } else {
-                    locatFilter = " "
-                }
+        let locatFilter;
+        if (locatArray.length >= 1) {
+            locatFilter = sql`AND l.id IN
+            ${locatArray}`
+        } else {
+            locatFilter = sql``
+        }
 
+        let timeFilter;
+        if (this.state.start_year !== "" && this.state.end_year !== "") {
+            timeFilter = sql`WHERE
+            ((t.start_year IS NOT NULL) AND (t.start_year >= ${this.state.start_year}) AND (t.start_year <= ${this.state.end_year}))
+            OR
+            ((t.end_year IS NOT NULL) AND (t.end_year >= ${this.state.start_year}) AND (t.end_year <= ${this.state.end_year}))
+            OR
+            ((t.start_year IS NOT NULL) AND (t.start_year < ${this.state.start_year}) AND (t.end_year IS NOT NULL) AND (t.end_year > ${this.state.end_year}))`
+        } else if (this.state.start_year === "" && this.state.end_year !== "") {
+            timeFilter = sql`WHERE
+                (t.start_year <= ${this.state.end_year})
+                OR (t.end_year <=
+                ${this.state.end_year}
+                )`
+        } else if (this.state.start_year !== "" && this.state.end_year === "") {
+            timeFilter = sql`WHERE
+                (t.start_year >= ${this.state.start_year})
+                OR (t.end_year >=
+                ${this.state.start_year}
+                )`
+        } else {
+            timeFilter = sql``
+        }
+        let timeFilter_t2;
+        timeFilter_t2 = timeFilter.replace(/t\./g, 't[0].'); // Adjust the timeFilter for t*2
 
-                let timeFilter;
-                if (this.state.start_year !== "" && this.state.end_year !== "") {
-                    timeFilter = ` WHERE ((t.start_year IS NOT NULL) AND (t.start_year >= ${this.state.start_year}) AND (t.start_year <= ${this.state.end_year})) OR
-          ((t.end_year IS NOT NULL) AND (t.end_year >= ${this.state.start_year}) AND (t.end_year <= ${this.state.end_year})) OR
-          ((t.start_year IS NOT NULL) AND (t.start_year < ${this.state.start_year}) AND (t.end_year IS NOT NULL) AND (t.end_year > ${this.state.end_year}))`
-                } else if (this.state.start_year === "" && this.state.end_year !== "") {
-                    timeFilter = ` WHERE (t.start_year <= ${this.state.end_year}) OR (t.end_year <= ${this.state.end_year})`
-                } else if (this.state.start_year !== "" && this.state.end_year === "") {
-                    timeFilter = ` WHERE (t.start_year >= ${this.state.start_year}) OR (t.end_year >= ${this.state.start_year})`
-                } else {
-                    timeFilter = ""
-                }
-                let timeFilter_t2;
-                timeFilter_t2 = timeFilter.replace(/t\./g, 't[0].'); // Adjust the timeFilter for t*2
+        let keyFilter;
+        if (this.state.sent_id !== "init" && this.state.kind === "People") {
+            if (timeFilter !== "") {
+                keyFilter = sql`AND n.ID =
+                ${internalId}`
+            } else {
+                keyFilter = sql`WHERE n.ID =
+                ${internalId}`
+            }
+        } else if (this.state.sent_id !== "init" && this.state.kind === "Institutions" && this.state.affiliation === "All") {
+            if (timeFilter !== "") {
+                keyFilter = sql`AND r.ID =
+                ${internalId}`
+            } else {
+                keyFilter = sql`WHERE r.ID =
+                ${internalId}`
+            }
+        } else {
+            keyFilter = sql``
+        }
 
-                let keyFilter;
-                if (this.state.sent_id !== "init" && this.state.kind === "People") {
-                    if (timeFilter !== "") {
-                        keyFilter = ' AND ID(n)=' + internalId
-                    } else {
-                        keyFilter = ' WHERE ID(n)=' + internalId
-                    }
-                } else if (this.state.sent_id !== "init" && this.state.kind === "Institutions" && this.state.affiliation === "All") {
-                    if (timeFilter !== "") {
-                        keyFilter = ' AND ID(r)=' + internalId
-                    } else {
-                        keyFilter = ' WHERE ID(r)=' + internalId
-                    }
-                } else {
-                    keyFilter = ""
-                }
+        //CONCAT & CLEAN FILTERS
+        const filterStatic = [genderFilter, nationalityFilter]
+        const filterStaticClean = filterStatic.filter(value => value.length > 1).join();
 
-                //CONCAT & CLEAN FILTERS
-                const filterStatic = [genderFilter, nationalityFilter]
-                const filterStaticClean = filterStatic.filter(value => value.length > 1).join();
+        const corpFilterStatic = [relFamFilter, affFilter]
+        const corpFilterStaticClean = corpFilterStatic.filter(value => value.length > 1).join();
+        const instFilterStatic = [icatFilter, isubcatFilter]
+        const instFilterStaticClean = instFilterStatic.filter(value => value.length > 1).join();
 
-                const corpFilterStatic = [relFamFilter, affFilter]
-                const corpFilterStaticClean = corpFilterStatic.filter(value => value.length > 1).join();
-                const instFilterStatic = [icatFilter, isubcatFilter]
-                const instFilterStaticClean = instFilterStatic.filter(value => value.length > 1).join();
-
-                let unAffFilter;
-                if (this.state.sent_id !== "init" && this.state.kind === "People" && this.state.affiliation === "All") {
-                    unAffFilter = `UNION MATCH (n:Person {` + filterStaticClean + `})-[t]-(r:Institution)` + timeFilter + keyFilter + personNameFilter2 + `
+        let unAffFilter;
+        if (this.state.sent_id !== "init" && this.state.kind === "People" && this.state.affiliation === "All") {
+            unAffFilter = sql`UNION MATCH (n:Person {` + filterStaticClean + `})-[t]-(r:Institution)` + timeFilter + keyFilter + personNameFilter2 + `
       WITH n,r,t
       MATCH (r)-[]->(l) WHERE (l:Township OR l:Village OR l:County OR l:Prefecture OR l:Province) ` + locatFilter + `
       RETURN {key:n.id,
         properties:properties(n),inst:properties(r),aff:properties(r),locat:properties(l),rel:properties(t),locat_name:properties(l).name_wes} AS Nodes`
-                } else {
-                    unAffFilter = ""
-                }
+        } else {
+            unAffFilter = sql``
+        }
 
-                //CONSTRUCT QUERY WITH VARIABLES
-                let query;
-                if (this.state.kind === "People") {
-                    const query = `
-          MATCH (n:Person {` + filterStaticClean + `})-[t]-(r)-[]-(e:CorporateEntity {` + affFilter + `})` + timeFilter + keyFilter + personNameFilter2 + `
+        //CONSTRUCT QUERY WITH VARIABLES
+        if (this.state.kind === "People") {
+            const results = sql`
+                MATCH
+                    (n:Person {` + filterStaticClean + `})-[t]-(r)-[]-(e:CorporateEntity {` + affFilter + `})` + timeFilter + keyFilter + personNameFilter2 + `
           WITH n,r,e,t
           MATCH (r)-[]->(l) WHERE (l:Township OR l:Village OR l:County OR l:Prefecture OR l:Province)` + locatFilter + `
           RETURN {key:n.id,properties:properties(n),inst:properties(r),aff:properties(e),locat:properties(l),rel:properties(t),locat_name:properties(l).name_wes} AS Nodes
@@ -327,27 +349,22 @@ export function fetchResults() {
           MATCH (r)-[]->(l) WHERE (l:Township OR l:Village OR l:County OR l:Prefecture OR l:Province)` + locatFilter + `
           RETURN {key:n.id,properties:properties(n),inst:properties(r),aff:properties(e),locat:properties(l),rel:properties(t),locat_name:properties(l).name_wes} AS Nodes
           `
-                    session
-                        .run(query)
-                        .then((results) => {
-                            let unfiltArray = results.records.map((record) => record.get('Nodes'));
-                            let nodeArray = unfiltArray.filter(node => node.locat.latitude && node.locat.longitude);
-                            if (nodeArray.length === 0) {
-                                this.setState({noresults: "noresults"});
-                                this.setState({content: "loaded"});
-                            } else {
-                                const mapBounds = nodeArray.map(node => ([node.locat.latitude, node.locat.longitude]));
-                                this.setState({nodeArray})
-                                this.setState({mapBounds});
-                                this.setState({noresults: "noresults hide"});
-                                this.setState({content: "loaded"});
-                                this.setState({sent_id: "init"});
-                                session.close()
-                            }
-                        })
+            let unfiltArray = results.records.map((record) => record.get('Nodes'));
+            let nodeArray = unfiltArray.filter(node => node.locat.latitude && node.locat.longitude);
+            if (nodeArray.length === 0) {
+                this.setState({noresults: "noresults"});
+                this.setState({content: "loaded"});
+            } else {
+                const mapBounds = nodeArray.map(node => ([node.locat.latitude, node.locat.longitude]));
+                this.setState({nodeArray})
+                this.setState({mapBounds});
+                this.setState({noresults: "noresults hide"});
+                this.setState({content: "loaded"});
+                this.setState({sent_id: "init"});
+            }
 
-                    const session2 = this.driver.session()
-                    const query2 = `
+            const session2 = this.driver.session()
+            const query2 = `
             CALL {
             MATCH (n:Person {${filterStaticClean}})-[t]-(r:Institution)-[]-(e:CorporateEntity {${affFilter}}) ${timeFilter} ${keyFilter} ${personNameFilter2}
             WITH n,r,e,t
@@ -392,17 +409,12 @@ export function fetchResults() {
             }
             RETURN DISTINCT Nodes
             `
-                    session2
-                        .run(query2)
-                        .then((results) => {
-                            let unfiltArrayPrint = results.records.map((record) => record.get('Nodes'));
-                            let printArray = unfiltArrayPrint.filter(i => i.latitude && i.longitude);
-                            this.setState({printArray})
-                            session2.close()
-                        })
+            let unfiltArrayPrint = results.records.map((record) => record.get('Nodes'));
+            let printArray = unfiltArrayPrint.filter(i => i.latitude && i.longitude);
+            this.setState({printArray})
 
-                } else if (this.state.kind === "Institutions") {
-                    const query = `
+        } else if (this.state.kind === "Institutions") {
+            const query = `
       MATCH (r:Institution {` + instFilterStaticClean + `})-[t]-(e:CorporateEntity {` + corpFilterStaticClean + `})` + timeFilter + keyFilter + `
       WITH t, r, e
       MATCH (r)-[]->(l)
@@ -429,30 +441,26 @@ export function fetchResults() {
         locat_name: properties(l).name_wes
       } AS Nodes
       `
-                    session.run(query).then((results) => {
-                        let unfiltArray = results.records.map((record) => record.get('Nodes'));
-                        let nodeArray;
-                        if (this.state.location !== "All" && this.state.location !== "都") {
-                            nodeArray = unfiltArray.filter(e => locatFilter[0].includes(e.locat.name_zh)).filter(node => node.locat.latitude && node.locat.longitude)
-                        } else {
-                            nodeArray = unfiltArray.filter(node => node.locat.latitude && node.locat.longitude)
-                        }
-                        if (nodeArray.length === 0) {
-                            this.setState({noresults: "noresults"});
-                            this.setState({content: "loaded"});
-                        } else {
-                            const mapBounds = nodeArray.map(node => ([node.locat.latitude, node.locat.longitude]));
-                            this.setState({nodeArray});
-                            this.setState({mapBounds});
-                            this.setState({noresults: "noresults hide"});
-                            this.setState({content: "loaded"});
-                            this.setState({sent_id: "init"});
-                        }
-                        session.close()
-                    })
+            let unfiltArray = results.records.map((record) => record.get('Nodes'));
+            let nodeArray;
+            if (this.state.location !== "All" && this.state.location !== "都") {
+                nodeArray = unfiltArray.filter(e => locatFilter[0].includes(e.locat.name_zh)).filter(node => node.locat.latitude && node.locat.longitude)
+            } else {
+                nodeArray = unfiltArray.filter(node => node.locat.latitude && node.locat.longitude)
+            }
+            if (nodeArray.length === 0) {
+                this.setState({noresults: "noresults"});
+                this.setState({content: "loaded"});
+            } else {
+                const mapBounds = nodeArray.map(node => ([node.locat.latitude, node.locat.longitude]));
+                this.setState({nodeArray});
+                this.setState({mapBounds});
+                this.setState({noresults: "noresults hide"});
+                this.setState({content: "loaded"});
+                this.setState({sent_id: "init"});
+            }
 
-                    const session2 = this.driver.session()
-                    const query2 = `
+            const query2 = `
             CALL {
               MATCH (r:Institution {` + instFilterStaticClean + `})-[t]-(e:CorporateEntity {` + corpFilterStaticClean + `})` + timeFilter + keyFilter + `
               WITH t,r,e MATCH (r)-[]->(l) WHERE (l:Township OR l:Village OR l:County OR l:Prefecture OR l:Province)` + locatFilter + nameFilter2 + `
@@ -497,42 +505,33 @@ export function fetchResults() {
             }
             RETURN DISTINCT Nodes
             `
-                    session2
-                        .run(query2)
-                        .then((results) => {
-                            let unfiltArrayPrint = results.records.map((record) => record.get('Nodes'));
-                            let printArray = unfiltArrayPrint.filter(i => i.latitude && i.longitude);
-                            this.setState({printArray})
-                            session2.close()
-                        })
+            let unfiltArrayPrint = results.records.map((record) => record.get('Nodes'));
+            let printArray = unfiltArrayPrint.filter(i => i.latitude && i.longitude);
+            this.setState({printArray})
 
 
-                } else if (this.state.kind === "Events") {
-                    const query = `
+        } else if (this.state.kind === "Events") {
+            const query = `
           MATCH (r:Event {` + instFilterStaticClean + `})-[t]-(l)` + timeFilter + keyFilter + `
           WITH r,t,l MATCH (r)-[t]->(l) WHERE (l:Township OR l:Village OR l:County OR l:Prefecture OR l:Province)` + locatFilter + nameFilter2 + `
           RETURN {key: r.id,
           properties:properties(r),locat:properties(l),rel:properties(t),locat_name:properties(l).name_wes} AS Nodes
           `
-                    session.run(query).then((results) => {
-                        let unfiltArray = results.records.map((record) => record.get('Nodes'));
-                        let nodeArray = unfiltArray.filter(node => node.locat.latitude && node.locat.longitude);
-                        if (nodeArray.length === 0) {
-                            this.setState({noresults: "noresults"});
-                            this.setState({content: "loaded"});
-                        } else {
-                            const mapBounds = nodeArray.map(node => ([node.locat.latitude, node.locat.longitude]));
-                            this.setState({nodeArray});
-                            this.setState({mapBounds});
-                            this.setState({noresults: "noresults hide"});
-                            this.setState({content: "loaded"});
-                            this.setState({sent_id: "init"});
-                        }
-                        session.close()
-                    })
+            let unfiltArray = results.records.map((record) => record.get('Nodes'));
+            let nodeArray = unfiltArray.filter(node => node.locat.latitude && node.locat.longitude);
+            if (nodeArray.length === 0) {
+                this.setState({noresults: "noresults"});
+                this.setState({content: "loaded"});
+            } else {
+                const mapBounds = nodeArray.map(node => ([node.locat.latitude, node.locat.longitude]));
+                this.setState({nodeArray});
+                this.setState({mapBounds});
+                this.setState({noresults: "noresults hide"});
+                this.setState({content: "loaded"});
+                this.setState({sent_id: "init"});
+            }
 
-                    const session2 = this.driver.session()
-                    const query2 = `
+            const query2 = `
             MATCH (r:Event {` + instFilterStaticClean + `})-[t]-(l)` + timeFilter + keyFilter + `
             WITH r,t,l MATCH (r)-[t]->(l) WHERE (l:Township OR l:Village OR l:County OR l:Prefecture OR l:Province)` + locatFilter + nameFilter2 + `
             RETURN {
@@ -551,20 +550,11 @@ export function fetchResults() {
               notes: COALESCE(t.notes ,"") + CASE WHEN r.notes IS NOT NULL THEN ' / ' ELSE '' END + COALESCE(r.notes ,"")
             } AS Nodes
             `
-                    session2
-                        .run(query2)
-                        .then((results) => {
-                            let unfiltArrayPrint = results.records.map((record) => record.get('Nodes'));
-                            let printArray = unfiltArrayPrint.filter(i => i.latitude && i.longitude);
-                            this.setState({printArray})
-                            session2.close()
-                        })
+            let unfiltArrayPrint = results.records.map((record) => record.get('Nodes'));
+            let printArray = unfiltArrayPrint.filter(i => i.latitude && i.longitude);
+            this.setState({printArray})
 
-                }
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
+        }
     }
 }
 
@@ -699,70 +689,85 @@ export function fetchNetworkResults() {
             degreeFilter = 1
         }
 
-        let peopleFilter;
+
+        let peopleFilter = false
         if (this.state.people_include === true) {
-            peopleFilter = "+"
-        } else {
-            peopleFilter = "-"
+            peopleFilter = true
         }
-        let instFilter;
+
+        let instFilter = false
         if (this.state.inst_include === true) {
-            instFilter = "+"
-        } else {
-            instFilter = "-"
+            instFilter = true
         }
-        let corpFilter;
+        let corpFilter = false
         if (this.state.corp_include === true) {
-            corpFilter = "+"
-        } else {
-            corpFilter = "-"
+            corpFilter = true
         }
-        let eventFilter;
+        let eventFilter = false
         if (this.state.event_include === true) {
-            eventFilter = "+"
-        } else {
-            eventFilter = "-"
+            eventFilter = true
         }
         let pubFilter;
         if (this.state.pub_include === true) {
-            pubFilter = "+"
-        } else {
-            pubFilter = "-"
+            pubFilter = true
         }
+
+        let nodeTypeFilter;
+        nodeTypeFilter = sql`AND t.entity_to_id
+        ${
+            peopleFilter
+                ? sql`LIKE P% OR t.entity_to_id`
+                : sql``}
+        ${instFilter
+            ? sql`LIKE N% OR t.entity_to_id`
+            : sql``}
+        ${corpFilter
+            ? sql`LIKE C% OR t.entity_to_id`
+            : sql``}
+        ${eventFilter
+            ? sql`LIKE E% OR t.entity_to_id`
+            : sql``}
+        ${pubFilter
+            ? sql`LIKE B% OR t.entity_to_id`
+            : sql``}
+        =""`
+
         //CONCAT FILTERS
         const filterStatic = [nodeIdFilter]
         const filterStaticClean = filterStatic.filter(value => value.length > 1).join();
 
         //CONSTRUCT QUERY WITH VARIABLES
-        let startFilter = null;
-        let endFilter = null;
+        let startYearFilter = null;
+        let endYearFilter = null;
         if (this.state.end_year !== "") {
-            endFilter = this.state.end_year
+            endYearFilter = this.state.end_year
         }
         if (this.state.start_year !== "") {
-            startFilter = this.state.start_year
+            startYearFilter = this.state.start_year
         }
 
         results = sql`WITH RECURSIVE SubgraphCTE AS (SELECT t.*,
                                                             1 AS level
                                                      FROM Relationship t
-                                                     WHERE (t.entity_from_id = ${nodeIdFilter} OR t.entity_to_id = ${nodeIdFilter})
-                                                       AND t.entity_to_id like ${nodeTypeFilter}
-                                                       AND (t.start_year >= ${startYearFilter} AND
-                                                            (t.start_year <= ${endYearFilter} OR t.end_year <= ${endYearFilter}))
+                                                     WHERE (t.entity_from_id = ${nodeIdFilter} OR t.entity_to_id = ${nodeIdFilter}) ${nodeTypeFilter}
+                                                       AND (t.start_year >= ${startYearFilter}
+                                                       AND
+                                                         (t.start_year <= ${endYearFilter}
+                                                        OR t.end_year <= ${endYearFilter}))
                                                      UNION ALL
-                                                     SELECT t.*,
-                                                            sg.level + 1
+                                                     SELECT t.*, sg.level + 1
                                                      FROM Relationship t
-                                                              JOIN SubgraphCTE sg
-                                                                   ON (sg.entity_to_id = t.entity_from_id AND
-                                                                       t.entity_from_id like ${nodeTypeFilter})
-                                                                       OR (sg.entity_to_id = t.entity_to_id AND
-                                                                           t.entity_to_id like
-                                                                           ${nodeTypeFilter})
-                                                     WHERE sg.level < ${degreeFilter}
-                                                       AND (t.start_year >= ${startYearFilter} AND
-                                                            (t.start_year <= ${endYearFilter} OR t.end_year <= ${endYearFilter})))
+                                                         JOIN SubgraphCTE sg
+                                                     ON (sg.entity_to_id = t.entity_from_id AND
+                                                         t.entity_from_id like ${nodeTypeFilter})
+                                                         OR (sg.entity_to_id = t.entity_to_id
+                                                         ${nodeTypeFilter})
+                                                     WHERE sg.level
+                                                         < ${degreeFilter}
+                                                       AND (t.start_year >= ${startYearFilter}
+                                                       AND
+                                                         (t.start_year <= ${endYearFilter}
+                                                        OR t.end_year <= ${endYearFilter})))
                       SELECT json_build_object(
                                      'nodes', json_agg(DISTINCT jsonb_build_object(
                                       'key', n.id,
@@ -812,8 +817,7 @@ export function fetchNetworkResults() {
 // QUERIES FOR POPUP INFORMATION ////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//QUERY FOR SELECTED NODE + APPEND BREADCRUMB (CLICK IN POPUP CONTENT)
-//QUERY FOR SELECTED NODE + REDUCE BREADCRUMB (CLICK IN POPUP CONTENT)
+//QUERY FOR SELECTED NODE + APPEND/REDUCE BREADCRUMB (CLICK IN POPUP CONTENT)
 export function selectSwitch(event, actionType, order = null) {
     this.setState({nodeSelect: event});
     const results = sql`
@@ -1511,241 +1515,234 @@ export function fetchInstitutionsData() {
 
         // FETCH GENDER ACTIVITY
         const result2b = sql`
-    WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id =` + nodeIdFilter + `
-    UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
-),
-data AS (
-    SELECT DISTINCT p.id AS person_id,
-        p.gender,
-        r.start_year,
-        r.end_year
-    FROM People p
-        JOIN Relationship r ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-        JOIN related_institutions ri ON (r.entity_from_id = ri.institution_id)
-        OR (r.entity_to_id = ri.institution_id)
-    WHERE p.gender IS NOT NULL
-        AND r.start_year IS NOT NULL
-        AND r.end_year IS NOT NULL -- Exclude records where end_year is NULL
-),
-ranges AS (
-    SELECT person_id,
-        gender,
-        generate_series(start_year, end_year) AS year
-    FROM data
-),
-yearly_counts AS (
-    SELECT year,
-        gender,
-        COUNT(DISTINCT person_id) AS count
-    FROM ranges
-    GROUP BY year,
-        gender
-),
-gender_year_counts AS (
-    SELECT year,
-        SUM(
-            CASE
-                WHEN gender = 'Male' THEN count
-                ELSE 0
-            END
-        ) AS male,
-        SUM(
-            CASE
-                WHEN gender = 'Female' THEN count
-                ELSE 0
-            END
-        ) AS female,
-        SUM(
-            CASE
-                WHEN gender IS NULL
-                OR gender NOT IN ('Male', 'Female') THEN count
-                ELSE 0
-            END
-        ) AS unknown
-    FROM yearly_counts
-    GROUP BY year
-)
-SELECT year AS info,
-    COALESCE(female, 0) AS female,
-    COALESCE(male, 0) AS male,
-    COALESCE(unknown, 0) AS unknown
-FROM gender_year_counts
-ORDER BY year;`
+            WITH RECURSIVE
+                related_institutions AS (
+                    -- Base case: Start with the base institution
+                    SELECT i.id AS institution_id
+                    FROM institutions i
+                    WHERE i.id = ${nodeIdFilter}
+                    UNION ALL
+                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                    SELECT r.entity_from_id AS institution_id
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                    WHERE r.entity_from_id IS NOT NULL
+                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+                ),
+                data AS (SELECT DISTINCT p.id AS person_id,
+                                         p.gender,
+                                         r.start_year,
+                                         r.end_year
+                         FROM People p
+                                  JOIN Relationship r ON (p.id = r.entity_from_id)
+                             OR (p.id = r.entity_to_id)
+                                  JOIN related_institutions ri ON (r.entity_from_id = ri.institution_id)
+                             OR (r.entity_to_id = ri.institution_id)
+                         WHERE p.gender IS NOT NULL
+                           AND r.start_year IS NOT NULL
+                           AND r.end_year IS NOT NULL -- Exclude records where end_year is NULL
+                ),
+                ranges AS (SELECT person_id,
+                                  gender,
+                                  generate_series(start_year, end_year) AS year
+                           FROM data),
+                yearly_counts AS (SELECT year,
+                                         gender,
+                                         COUNT(DISTINCT person_id) AS count
+                                  FROM ranges
+                                  GROUP BY year,
+                                           gender),
+                gender_year_counts AS (SELECT year,
+                                              SUM(
+                                                      CASE
+                                                          WHEN gender = 'Male' THEN count
+                                                          ELSE 0
+                                                          END
+                                              ) AS male,
+                                              SUM(
+                                                      CASE
+                                                          WHEN gender = 'Female' THEN count
+                                                          ELSE 0
+                                                          END
+                                              ) AS female,
+                                              SUM(
+                                                      CASE
+                                                          WHEN gender IS NULL
+                                                              OR gender NOT IN ('Male', 'Female') THEN count
+                                                          ELSE 0
+                                                          END
+                                              ) AS unknown
+                                       FROM yearly_counts
+                                       GROUP BY year)
+            SELECT year                 AS info,
+                   COALESCE(female, 0)  AS female,
+                   COALESCE(male, 0)    AS male,
+                   COALESCE(unknown, 0) AS unknown
+            FROM gender_year_counts
+            ORDER BY year;`
         const genderListInit = results.records.map((record) => record.get('List', 'Activity'));
         const genderList = genderListInit.filter(d => (d.info >= 1550 && d.info <= 1950))
         this.setState({genderList})
 
         //FETCH NATIONALITY
-        const result3 = sql`WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id =` + nodeIdFilter + `
-    UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
-),
-relevant_people AS (
-    -- Find all distinct people related to any of the related institutions
-    SELECT DISTINCT p.id,
-        p.nationality
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_from_id
-        OR ri.institution_id = r.entity_to_id
-        JOIN People p ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-    WHERE p.nationality <> 'Unknown'
-        AND p.id IS NOT NULL
-)
-SELECT rp.nationality,
-    COUNT(*) AS count
-FROM relevant_people rp
-GROUP BY rp.nationality
-ORDER BY count DESC;`
+        const result3 = sql`WITH RECURSIVE
+                                related_institutions AS (
+                                    -- Base case: Start with the base institution
+                                    SELECT i.id AS institution_id
+                                    FROM institutions i
+                                    WHERE i.id = ${nodeIdFilter}
+                                    UNION ALL
+                                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                                    SELECT r.entity_from_id AS institution_id
+                                    FROM related_institutions ri
+                                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                                    WHERE r.entity_from_id IS NOT NULL
+                                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+                                ),
+                                relevant_people AS (
+                                    -- Find all distinct people related to any of the related institutions
+                                    SELECT DISTINCT p.id,
+                                                    p.nationality
+                                    FROM related_institutions ri
+                                             JOIN Relationship r ON ri.institution_id = r.entity_from_id
+                                        OR ri.institution_id = r.entity_to_id
+                                             JOIN People p ON (p.id = r.entity_from_id)
+                                        OR (p.id = r.entity_to_id)
+                                    WHERE p.nationality <> 'Unknown'
+                                      AND p.id IS NOT NULL)
+                            SELECT rp.nationality,
+                                   COUNT(*) AS count
+                            FROM relevant_people rp
+                            GROUP BY rp.nationality
+                            ORDER BY count DESC;`
         const nationalityList = results.records.map((record) => record.get('List', 'info'));
         const nationality = nationalityList.filter(d => d.count >= 1)
         this.setState({nationality})
 
         //FETCH NATIONALITY (NULL)
-        const result4 = sql`WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id =` + nodeIdFilter + `
-    UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
-),
-relevant_people AS (
-    -- Find all distinct people related to any of the related institutions
-    SELECT DISTINCT p.id,
-        p.nationality
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_from_id
-        OR ri.institution_id = r.entity_to_id
-        JOIN People p ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-    WHERE (
-            p.nationality = 'Unknown'
-            OR p.nationality IS NULL
-        )
-        AND p.id IS NOT NULL
-)
-SELECT rp.nationality,
-    COUNT(*) AS count
-FROM relevant_people rp
-GROUP BY rp.nationality
-ORDER BY count DESC;`
+        const result4 = sql`WITH RECURSIVE
+                                related_institutions AS (
+                                    -- Base case: Start with the base institution
+                                    SELECT i.id AS institution_id
+                                    FROM institutions i
+                                    WHERE i.id = ${nodeIdFilter}
+                                    UNION ALL
+                                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                                    SELECT r.entity_from_id AS institution_id
+                                    FROM related_institutions ri
+                                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                                    WHERE r.entity_from_id IS NOT NULL
+                                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+                                ),
+                                relevant_people AS (
+                                    -- Find all distinct people related to any of the related institutions
+                                    SELECT DISTINCT p.id,
+                                                    p.nationality
+                                    FROM related_institutions ri
+                                             JOIN Relationship r ON ri.institution_id = r.entity_from_id
+                                        OR ri.institution_id = r.entity_to_id
+                                             JOIN People p ON (p.id = r.entity_from_id)
+                                        OR (p.id = r.entity_to_id)
+                                    WHERE (
+                                        p.nationality = 'Unknown'
+                                            OR p.nationality IS NULL
+                                        )
+                                      AND p.id IS NOT NULL)
+                            SELECT rp.nationality,
+                                   COUNT(*) AS count
+                            FROM relevant_people rp
+                            GROUP BY rp.nationality
+                            ORDER BY count DESC;`
         const nationalityNull = results.records.map((record) => record.get('Count', 'info'));
         this.setState({nationalityNull})
 
         //FETCH PEOPLE PRESENT BY YEAR
         const result8 = sql`
-    WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id =` + nodeIdFilter + `
-    UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
-),
-data AS (
-    -- Find people related to any of the related institutions
-    SELECT DISTINCT p.id AS person_id,
-        r.start_year,
-        r.end_year
-    FROM People p
-        JOIN Relationship r ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-        JOIN related_institutions ri ON (r.entity_from_id = ri.institution_id)
-        OR (r.entity_to_id = ri.institution_id)
-    WHERE p.id IS NOT NULL
-        AND r.start_year IS NOT NULL
-        AND r.end_year IS NOT NULL -- Exclude records where end_year is NULL
-),
-ranges AS (
-    -- Generate years for each person based on the start and end years
-    SELECT person_id,
-        generate_series(start_year, end_year) AS year
-    FROM data
-),
-yearly_counts AS (
-    -- Count distinct people per year
-    SELECT year,
-        COUNT(DISTINCT person_id) AS total_count
-    FROM ranges
-    GROUP BY year
-)
-SELECT year AS info,
-    total_count
-FROM yearly_counts
-ORDER BY year;`
+            WITH RECURSIVE
+                related_institutions AS (
+                    -- Base case: Start with the base institution
+                    SELECT i.id AS institution_id
+                    FROM institutions i
+                    WHERE i.id = ${nodeIdFilter}
+                    UNION ALL
+                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                    SELECT r.entity_from_id AS institution_id
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                    WHERE r.entity_from_id IS NOT NULL
+                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+                ),
+                data AS (
+                    -- Find people related to any of the related institutions
+                    SELECT DISTINCT p.id AS person_id,
+                                    r.start_year,
+                                    r.end_year
+                    FROM People p
+                             JOIN Relationship r ON (p.id = r.entity_from_id)
+                        OR (p.id = r.entity_to_id)
+                             JOIN related_institutions ri ON (r.entity_from_id = ri.institution_id)
+                        OR (r.entity_to_id = ri.institution_id)
+                    WHERE p.id IS NOT NULL
+                      AND r.start_year IS NOT NULL
+                      AND r.end_year IS NOT NULL -- Exclude records where end_year is NULL
+                ),
+                ranges AS (
+                    -- Generate years for each person based on the start and end years
+                    SELECT person_id,
+                           generate_series(start_year, end_year) AS year
+                    FROM data),
+                yearly_counts AS (
+                    -- Count distinct people per year
+                    SELECT year,
+                           COUNT(DISTINCT person_id) AS total_count
+                    FROM ranges
+                    GROUP BY year)
+            SELECT year AS info,
+                   total_count
+            FROM yearly_counts
+            ORDER BY year;`
         const instList = results.records.map((record) => record.get('List', 'info'));
         const instDateList = instList.filter(d => (d.count >= 1 && d.info >= 1550 && d.info <= 1950))
         this.setState({instDateList})
 
         //FETCH CHRISTIAN_TRADITION
         const result9 = sql`
-    WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id =` + nodeIdFilter + `
-    UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions
-),
-relevant_people AS (
-    -- Find all distinct people related to any of the related institutions
-    SELECT DISTINCT p.id,
-        p.christian_tradition
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_from_id
-        OR ri.institution_id = r.entity_to_id
-        JOIN People p ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-    WHERE p.christian_tradition IS NOT NULL
-        AND p.id IS NOT NULL
-)
-SELECT rp.christian_tradition,
-    COUNT(*) AS count
-FROM relevant_people rp
-GROUP BY rp.christian_tradition
-ORDER BY count DESC;
-    `
+            WITH RECURSIVE
+                related_institutions AS (
+                    -- Base case: Start with the base institution
+                    SELECT i.id AS institution_id
+                    FROM institutions i
+                    WHERE i.id = ${nodeIdFilter}
+                    UNION ALL
+                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                    SELECT r.entity_from_id AS institution_id
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                    WHERE r.entity_from_id IS NOT NULL
+                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions
+                ),
+                relevant_people AS (
+                    -- Find all distinct people related to any of the related institutions
+                    SELECT DISTINCT p.id,
+                                    p.christian_tradition
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_from_id
+                        OR ri.institution_id = r.entity_to_id
+                             JOIN People p ON (p.id = r.entity_from_id)
+                        OR (p.id = r.entity_to_id)
+                    WHERE p.christian_tradition IS NOT NULL
+                      AND p.id IS NOT NULL)
+            SELECT rp.christian_tradition,
+                   COUNT(*) AS count
+            FROM relevant_people rp
+            GROUP BY rp.christian_tradition
+            ORDER BY count DESC;
+        `
         const christianTraditionList = results.records.map((record) => record.get('List', 'christian_tradition'));
         let christianTradition = [];
         for (let i = 0; i < christianTraditionList.length; i++) {
@@ -1759,37 +1756,37 @@ ORDER BY count DESC;
 
         //FETCH RELIGIOUS_FAMILY
         const result10 = sql`
-    WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id =` + nodeIdFilter + `
-    UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions
-),
-relevant_people AS (
-    -- Find all distinct people related to any of the related institutions
-    SELECT DISTINCT p.id,
-        p.religious_family
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_from_id
-        OR ri.institution_id = r.entity_to_id
-        JOIN People p ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-    WHERE p.religious_family IS NOT NULL
-        AND p.id IS NOT NULL
-)
-SELECT rp.religious_family,
-    COUNT(*) AS count
-FROM relevant_people rp
-GROUP BY rp.religious_family
-ORDER BY count DESC;`
+            WITH RECURSIVE
+                related_institutions AS (
+                    -- Base case: Start with the base institution
+                    SELECT i.id AS institution_id
+                    FROM institutions i
+                    WHERE i.id = ${nodeIdFilter}
+                    UNION ALL
+                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                    SELECT r.entity_from_id AS institution_id
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                    WHERE r.entity_from_id IS NOT NULL
+                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions
+                ),
+                relevant_people AS (
+                    -- Find all distinct people related to any of the related institutions
+                    SELECT DISTINCT p.id,
+                                    p.religious_family
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_from_id
+                        OR ri.institution_id = r.entity_to_id
+                             JOIN People p ON (p.id = r.entity_from_id)
+                        OR (p.id = r.entity_to_id)
+                    WHERE p.religious_family IS NOT NULL
+                      AND p.id IS NOT NULL)
+            SELECT rp.religious_family,
+                   COUNT(*) AS count
+            FROM relevant_people rp
+            GROUP BY rp.religious_family
+            ORDER BY count DESC;`
         const religiousFamilyList = results.records.map((record) => record.get('List', 'religious_family'));
         const religiousFamilyClean = religiousFamilyList.filter(d => d.count >= 0)
         let religiousFamily = [];
@@ -1803,80 +1800,80 @@ ORDER BY count DESC;`
         this.setState({religiousFamily})
 
         //FETCH RELIGIOUS_FAMILY NULL
-        const result11 = sql`WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id = ${nodeIdFilter}
-              UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
-),
-relevant_people AS (
-    -- Find all distinct people related to any of the related institutions
-    SELECT DISTINCT p.id,
-        p.religious_family
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_from_id
-        OR ri.institution_id = r.entity_to_id
-        JOIN People p ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-    WHERE (
-            p.religious_family = 'Unknown'
-            OR p.religious_family IS NULL
-        )
-        AND p.id IS NOT NULL
-)
-SELECT rp.religious_family,
-    COUNT(*) AS count
-FROM relevant_people rp
-GROUP BY rp.religious_family
-ORDER BY count DESC;`
+        const result11 = sql`WITH RECURSIVE
+                                 related_institutions AS (
+                                     -- Base case: Start with the base institution
+                                     SELECT i.id AS institution_id
+                                     FROM institutions i
+                                     WHERE i.id = ${nodeIdFilter}
+                                     UNION ALL
+                                     -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                                     SELECT r.entity_from_id AS institution_id
+                                     FROM related_institutions ri
+                                              JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                                              JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                                     WHERE r.entity_from_id IS NOT NULL
+                                       AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+                                 ),
+                                 relevant_people AS (
+                                     -- Find all distinct people related to any of the related institutions
+                                     SELECT DISTINCT p.id,
+                                                     p.religious_family
+                                     FROM related_institutions ri
+                                              JOIN Relationship r ON ri.institution_id = r.entity_from_id
+                                         OR ri.institution_id = r.entity_to_id
+                                              JOIN People p ON (p.id = r.entity_from_id)
+                                         OR (p.id = r.entity_to_id)
+                                     WHERE (
+                                         p.religious_family = 'Unknown'
+                                             OR p.religious_family IS NULL
+                                         )
+                                       AND p.id IS NOT NULL)
+                             SELECT rp.religious_family,
+                                    COUNT(*) AS count
+                             FROM relevant_people rp
+                             GROUP BY rp.religious_family
+                             ORDER BY count DESC;`
         const religiousFamilyNullValues = result11[0]["count"];
         this.setState({religiousFamilyNullValues})
 
 
         //FETCH CHRISTIAN TRADITION NULL
         const result12 = sql`
-            WITH RECURSIVE related_institutions AS (
-    -- Base case: Start with the base institution
-    SELECT i.id AS institution_id
-    FROM institutions i
-    WHERE i.id = ${nodeIdFilter}
-              UNION ALL
-    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
-    SELECT r.entity_from_id AS institution_id
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_to_id
-        JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
-    WHERE r.entity_from_id IS NOT NULL
-        AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
-),
-relevant_people AS (
-    -- Find all distinct people related to any of the related institutions
-    SELECT DISTINCT p.id,
-        p.christian_tradition
-    FROM related_institutions ri
-        JOIN Relationship r ON ri.institution_id = r.entity_from_id
-        OR ri.institution_id = r.entity_to_id
-        JOIN People p ON (p.id = r.entity_from_id)
-        OR (p.id = r.entity_to_id)
-    WHERE (
-            p.christian_tradition = 'Unknown'
-            OR p.christian_tradition IS NULL
-        )
-        AND p.id IS NOT NULL
-)
-SELECT rp.christian_tradition,
-    COUNT(*) AS count
-FROM relevant_people rp
-GROUP BY rp.christian_tradition
-ORDER BY count DESC;`
+            WITH RECURSIVE
+                related_institutions AS (
+                    -- Base case: Start with the base institution
+                    SELECT i.id AS institution_id
+                    FROM institutions i
+                    WHERE i.id = ${nodeIdFilter}
+                    UNION ALL
+                    -- Recursive case: Find institutions where the current institution is the "to" and another institution is the "from"
+                    SELECT r.entity_from_id AS institution_id
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_to_id
+                             JOIN institutions i ON r.entity_from_id = i.id -- Ensure we're only joining to institutions
+                    WHERE r.entity_from_id IS NOT NULL
+                      AND r.entity_from_id LIKE 'N%' -- Filter to only include institutions (IDs starting with "N")
+                ),
+                relevant_people AS (
+                    -- Find all distinct people related to any of the related institutions
+                    SELECT DISTINCT p.id,
+                                    p.christian_tradition
+                    FROM related_institutions ri
+                             JOIN Relationship r ON ri.institution_id = r.entity_from_id
+                        OR ri.institution_id = r.entity_to_id
+                             JOIN People p ON (p.id = r.entity_from_id)
+                        OR (p.id = r.entity_to_id)
+                    WHERE (
+                        p.christian_tradition = 'Unknown'
+                            OR p.christian_tradition IS NULL
+                        )
+                      AND p.id IS NOT NULL)
+            SELECT rp.christian_tradition,
+                   COUNT(*) AS count
+            FROM relevant_people rp
+            GROUP BY rp.christian_tradition
+            ORDER BY count DESC;`
 
         const christianTraditionNullValues = result12[0]["count"];
         this.setState({christianTraditionNullValues})
